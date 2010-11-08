@@ -20,7 +20,7 @@
 
 (defclass red-black-tree ()
   ((root :accessor root)
-   (leaf :reader leaf)))
+   (leaf :accessor leaf)))
 
 ;; ---------------------------------------------------------------------------------------------------------------------
 ;; generics
@@ -28,6 +28,9 @@
 
 (defgeneric rb-node-class (tree)
   (:documentation "Return the class to be used for creating nodes in the tree"))
+
+(defgeneric rb-make-node (tree &key key data)
+  (:documentation "Return a node suitable for insertion within the tree"))
 
 (defgeneric rb-insert (tree node))
 
@@ -88,15 +91,17 @@
 ;; generics
 ;; ---------------------------------------------------------------------------------------------------------------------
 
-(defmethod initialize-instance :after ((obj red-black-tree)  &key)
-  (let ((leaf (make-instance (rb-node-class obj))))
+(defmethod rb-make-node ((tree red-black-tree) &key ((:key key) nil) ((:data data) nil))
+  (make-instance (rb-node-class tree) :key key :data data))
+
+(defmethod initialize-instance :after ((tree red-black-tree)  &key)
+  (let ((leaf (rb-make-node tree)))
     (setf (color leaf) :black)
     (setf (parent leaf) leaf)
     (setf (left leaf) leaf)
     (setf (right leaf) leaf)
-    (setf (slot-value obj 'leaf) leaf)
-    (setf (root obj) leaf)
-    (setf (color (root obj)) :black)))
+    (setf (leaf tree) leaf)
+    (setf (root tree) leaf)))
 
 (defmethod rb-insert ((tree red-black-tree) (node red-black-node))
   (let ((z node)
@@ -328,7 +333,7 @@
 
 (defmethod rb-put ((tree red-black-tree) (key t) (data t))
   (when data ;; can't store nil
-    (let ((node (make-instance (rb-node-class tree) :key key :data data)))
+    (let ((node (rb-make-node tree :key key :data data)))
       (rb-insert tree node))))
 
 (defmethod rb-get ((tree red-black-tree) key &optional (default nil))

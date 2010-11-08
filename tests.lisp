@@ -8,7 +8,7 @@
 (define-test create-rb-rtree-tests
     (let ((tree (make-red-black-tree)))
       (assert-true tree)
-      (assert-eq :black (slot-value (rb-tree::root tree) 'rb-tree::color))
+      (assert-eq :black (rb-tree::color (rb-tree::root tree)))
       (assert-false (rb-tree::rb-first tree))
       (assert-false (rb-tree::rb-last tree))))
 
@@ -19,7 +19,7 @@
 (define-test put-tests
   (let ((tree (make-red-black-tree)))
       (rb-put tree 1 "one")
-      (assert-eq :black (slot-value (rb-tree::root tree) 'rb-tree::color))
+      (assert-eq :black (rb-tree::color (rb-tree::root tree)))
       (assert-true t)))
 
 (define-test put-get-tests
