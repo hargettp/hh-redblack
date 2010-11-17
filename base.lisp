@@ -110,13 +110,7 @@
     (loop until (eq x (leaf tree))
        do (progn
 	    (setf y x)
-	    (cond ((rb= (key z) (key x))
-		   ;; don't insert -- just update the existing node with new key & data
-		   (setf (key x) (key z))
-		   (setf (data x) (data z))
-		   ;; trigger the exit condition
-		   (setf x (leaf tree)))
-		  ((rb< (key z) (key x))
+	    (cond ((rb< (key z) (key x))
 		   (setf x (left x)))
 		  (t
 		   (setf x (right x))))))
@@ -138,7 +132,7 @@
     (loop while (eq (color (parent z)) :red)
        do (if (eq (parent z) (left (parent (parent z))))
 	      ;; for when on left side
-	      (let ((y (right (parent (parent z)))))		
+	      (let ((y (right (parent (parent z)))))
 		(cond ((eq (color y) :red)
 		       (setf (color (parent z)) :black)
 		       (setf (color y) :black)

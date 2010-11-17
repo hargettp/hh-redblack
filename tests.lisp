@@ -65,4 +65,105 @@
 					  (setf all-data (append all-data (list data))))
 		   all-data)))
 
+(define-test remove-tests
+  (assert-equal `(1 2 4 5) 
+		(let ((tree (make-red-black-tree))
+		      (keys ()))
+		  (rb-put tree 4 "four")
+		  (rb-put tree 1 "one")
+		  (rb-put tree 5 "five")
+		  (rb-put tree 3 "three")
+		  (rb-put tree 2 "two")
+		  (rb-remove tree 3)
+		  (with-rb-keys-and-data (key data :first) tree
+					 (setf keys (append keys (list key))))
+		  keys))
+  
+  (let ((tree (make-red-black-tree)))
+    (rb-put tree 4 "four")
+    (rb-put tree 1 "one")
+    (rb-put tree 5 "five")
+    (rb-put tree 3 "three")
+    (rb-put tree 2 "two")
+    (assert-equal `(1 2 3 4 5) 
+		  (let ((keys ()))
+		    (with-rb-keys-and-data (key data :first) tree
+					   (setf keys (append keys (list key))))
+		    keys))
+    (rb-remove tree 3)
+    (rb-remove tree 4)
+    (assert-equal `(1 2 5) 
+		  (let ((keys ()))
+    		    (with-rb-keys-and-data (key data :first) tree
+    					   (setf keys (append keys (list key))))
+    		    keys))
+    (rb-put tree 3 "three")
+    (rb-put tree 4 "four")
+    (assert-equal `(1 2 3 4 5) 
+		  (let ((keys ()))
+    		    (with-rb-keys-and-data (key data :first) tree
+    					   (setf keys (append keys (list key))))
+    		    keys))))
+
+(define-test peristent-red-black-tree-tests
+  (let ((tree (make-persistent-red-black-tree)))
+    (assert-true tree))
+
+  (let ((tree (make-persistent-red-black-tree)))
+    (assert-error 'requires-red-black-transaction
+    		  (rb-put tree 1 "one")))
+
+  (let ((tree (make-persistent-red-black-tree)))
+    (with-rb-transaction (tree)
+      (rb-put tree 1 "one"))
+    (assert-error 'requires-red-black-transaction
+    		  (rb-get tree 1)))
+
+  (let ((tree (make-persistent-red-black-tree)))
+    (with-rb-transaction (tree)
+      (rb-put tree 1 "one")
+      (assert-eq :black (rb-tree::color (rb-tree::root tree)))))
+
+  (let ((tree (make-persistent-red-black-tree)))
+    (with-rb-transaction (tree)
+      (rb-put tree 4 "four")
+      (rb-put tree 1 "one")
+      (rb-put tree 5 "five")
+      (rb-put tree 3 "three")
+      (rb-put tree 2 "two")
+      (assert-equal `(1 2 3 4 5) 
+		    (let ((keys ()))
+		      (with-rb-keys-and-data (key data :first) tree
+					     (setf keys (append keys (list key))))
+		      keys))))
+
+(let ((tree (make-persistent-red-black-tree)))
+  (with-rb-transaction (tree)
+    (rb-put tree 4 "four")
+    (rb-put tree 1 "one")
+    (rb-put tree 5 "five")
+    (rb-put tree 3 "three")
+    (rb-put tree 2 "two")
+    (assert-equal `(1 2 3 4 5) 
+		  (let ((keys ()))
+		    (with-rb-keys-and-data (key data :first) tree
+					   (setf keys (append keys (list key))))
+		    keys)))
+  (with-rb-transaction (tree)
+    (rb-remove tree 3)
+    (rb-remove tree 4)
+    (assert-equal `(1 2 5) 
+		  (let ((keys ()))
+    		    (with-rb-keys-and-data (key data :first) tree
+    					   (setf keys (append keys (list key))))
+    		    keys)))
+  (with-rb-transaction (tree)
+    (rb-put tree 3 "three")
+    (rb-put tree 4 "four")
+    (assert-equal `(1 2 3 4 5) 
+		  (let ((keys ()))
+    		    (with-rb-keys-and-data (key data :first) tree
+    					   (setf keys (append keys (list key))))
+    		    keys)))))
+
 (run-tests)

@@ -7,16 +7,18 @@
   (:use :cl)
   (:export
 
-   #:make-red-black-tree
-   
-   #:open-persistent-red-black-tree
+   #:make-red-black-tree   
+   #:make-persistent-red-black-tree
 
    #:rb-put
    #:rb-get
    #:rb-remove
    #:rb-size
    #:with-rb-keys-and-data
+   #:with-rb-transaction
 
    #:rb-key-compare
+
+   #:requires-red-black-transaction
 
    ))
