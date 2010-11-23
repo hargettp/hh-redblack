@@ -31,6 +31,8 @@
 (defclass red-black-tree-transaction ()
   ((tree :initarg :tree :accessor tree) 
    (new-root :initform nil :accessor new-root)
+   (location-to-id :initform (make-hash-table)  :accessor location-to-id)
+   (id-to-location :initform (make-hash-table)  :accessor id-to-location)
    (object-to-id :initform (make-hash-table)  :accessor object-to-id)
    (id-to-object :initform (make-hash-table)  :accessor id-to-object)
    (changes :initform (make-hash-table) :accessor changes)))
@@ -52,9 +54,11 @@
 
 (defgeneric id-for-object (transaction obj))
 
-(defgeneric add-changed-node (transaction node))
+(defgeneric add-new-object (transaction object))
 
-(defgeneric add-opened-node (transaction node id))
+(defgeneric add-changed-object (transaction object))
+
+(defgeneric add-opened-object (transaction object id))
 
 (defgeneric prb-open-storage (storage)
   (:documentation "Prepare storage for use; after this call load & save operations should succeed"))
@@ -62,12 +66,12 @@
 (defgeneric prb-close-storage (storage)
   (:documentation "Release storage from use; further load & save operations cannot succeed without a subsequent open call"))
 
-(defgeneric prb-load (storage id)
-  (:documentation "Load the indicated object from storage (usually a node or tree)"))
+(defgeneric prb-load (storage transaction location)
+  (:documentation "Load the object at the indicated location from storage (usually a node or tree)"))
 
-(defgeneric prb-save (storage id object)
+(defgeneric prb-save (storage transaction location object)
   (:documentation "Save the indicated object in storage (usually a node or tree); 
-    return a reference to its id within the storage"))
+    return a reference to its location within the storage"))
 
 (defgeneric prb-commit (transaction-or-tree)
   (:documentation "Orchestrate the persisting of all changes to a tree, including all changed nodes"))
@@ -95,34 +99,35 @@
 		  (require-rb-transaction)
 		  (let ((id (call-next-method)))
 		    (or (object-for-id *rb-transaction* id)
-			(let ((node (prb-load (storage (tree *rb-transaction*)) id)))
-			  (add-opened-node *rb-transaction* node id)
+			(let ((node (prb-load (storage (tree *rb-transaction*)) *rb-transaction* id)))
+			  (add-opened-object *rb-transaction* node id)
 			  node))))
 
 		(defmethod (setf ,slot) :around (value (node persistent-red-black-node))
 		  (require-rb-transaction)
-		  (add-changed-node *rb-transaction* node)
+		  (add-changed-object *rb-transaction* node)
 		  (call-next-method (id-for-object *rb-transaction* value) node)))))
   (declare-slot-translation parent)
   (declare-slot-translation left)
-  (declare-slot-translation right))
+  (declare-slot-translation right)
+  (declare-slot-translation data))
 
 (defmethod (setf color) (color (node persistent-red-black-node))
   (require-rb-transaction)
-  (add-changed-node *rb-transaction* node)
+  (add-changed-object *rb-transaction* node)
   (call-next-method))
 
 (defmethod root :around ((tree persistent-red-black-tree))
   (require-rb-transaction)
   (let ((id (or (and *rb-transaction* (new-root *rb-transaction*)) (call-next-method))))
     (or (object-for-id *rb-transaction* id)
-	(let ((root (prb-load (storage tree) id)))
-	  (add-opened-node *rb-transaction* root id)
+	(let ((root (prb-load (storage tree) *rb-transaction* id)))
+	  (add-opened-object *rb-transaction* root id)
 	  root))))
 
 (defmethod (setf root) (node (tree persistent-red-black-tree))
   (require-rb-transaction)
-  (add-changed-node *rb-transaction* node)
+  (add-changed-object *rb-transaction* node)
   (setf (new-root *rb-transaction*) (id-for-object *rb-transaction* node)))
 
 (defmethod allocate-id ((*rb-transaction* red-black-tree-transaction) obj)
@@ -149,27 +154,30 @@
 (defmethod rb-make-node :around ((tree persistent-red-black-tree) &key ((:key key) nil) ((:data data) nil))
   (declare (ignorable key data))
   (require-rb-transaction)
-  (let ((node (call-next-method)))
-    (add-new-node *rb-transaction* node)
+  (when data (add-new-object *rb-transaction* data))
+  ;; hard-coding a zero here, on the expectation that the nil sentinel node is first...let's see if that works
+  ;; theoretically, no node other than the sentinel node ever has nil data (and now it should have itself as data)
+  (let ((node (call-next-method tree :key key :data (if data (id-for-object *rb-transaction* data) 0))))
+    (add-new-object *rb-transaction* node)
     node))
 
-(defmethod add-changed-node ((*rb-transaction* red-black-tree-transaction) node)
-  (unless (gethash (id-for-object *rb-transaction* node) (changes *rb-transaction*))
-    (let ((old-id (id-for-object *rb-transaction* node)) 
-	  (new-id (allocate-id *rb-transaction* node)))
-      (setf (gethash node (object-to-id *rb-transaction*)) new-id)
-      (setf (gethash new-id (id-to-object *rb-transaction*)) node)
+(defmethod add-new-object ((*rb-transaction* red-black-tree-transaction) object)
+  (let ((new-id (allocate-id *rb-transaction* object)))
+    (setf (gethash object (object-to-id *rb-transaction*)) new-id)
+    (setf (gethash new-id (id-to-object *rb-transaction*)) object)
+    (setf (gethash new-id (changes *rb-transaction*)) new-id)))
+
+(defmethod add-changed-object ((*rb-transaction* red-black-tree-transaction) object)
+  (unless (gethash (id-for-object *rb-transaction* object) (changes *rb-transaction*))
+    (let ((old-id (id-for-object *rb-transaction* object)) 
+	  (new-id (allocate-id *rb-transaction* object)))
+      (setf (gethash object (object-to-id *rb-transaction*)) new-id)
+      (setf (gethash new-id (id-to-object *rb-transaction*)) object)
       (setf (gethash new-id (changes *rb-transaction*)) old-id))))
 
-(defmethod add-opened-node ((*rb-transaction* red-black-tree-transaction) node id)
-  (setf (gethash node (object-to-id *rb-transaction*)) id)
-  (setf (gethash id (id-to-object *rb-transaction*)) node))
-
-(defmethod add-new-node ((*rb-transaction* red-black-tree-transaction) node)
-  (let ((new-id (allocate-id *rb-transaction* node)))
-    (setf (gethash node (object-to-id *rb-transaction*)) new-id)
-    (setf (gethash new-id (id-to-object *rb-transaction*)) node)
-    (setf (gethash new-id (changes *rb-transaction*)) new-id)))
+(defmethod add-opened-object ((*rb-transaction* red-black-tree-transaction) object id)
+  (setf (gethash object (object-to-id *rb-transaction*)) id)
+  (setf (gethash id (id-to-object *rb-transaction*)) object))
 
 (defmacro with-rb-transaction ((tree) &rest body)
   `(let* ((existing-transaction *rb-transaction*) 
@@ -189,15 +197,15 @@
 (defun make-persistent-red-black-tree (&key ((:storage storage) (make-instance 'red-black-tree-memory-storage)))
   (with-rb-transaction ((make-instance 'persistent-red-black-tree :storage storage))))
 
-(defun open-persistent-red-black-tree (storage-info)
-  "Return a persisted red-black tree connected to its backing storage"
-  (declare (ignorable storage-info))
-  ;; TODO for now, we are using memory-based storage; we'll shift to file-based storage later
-  (let* ((storage (make-instance 'red-black-tree-memory-storage))
-	 (tree (make-instance 'persistent-red-black-tree :storage storage)))
-    (prb-open-storage storage)
-    (prb-load storage tree)
-    tree))
+;; (defun open-persistent-red-black-tree (storage-info)
+;;   "Return a persisted red-black tree connected to its backing storage"
+;;   (declare (ignorable storage-info))
+;;   ;; TODO for now, we are using memory-based storage; we'll shift to file-based storage later
+;;   (let* ((storage (make-instance 'red-black-tree-memory-storage))
+;; 	 (tree (make-instance 'persistent-red-black-tree :storage storage)))
+;;     (prb-open-storage storage)
+;;     (prb-load storage *rb-transaction* tree)
+;;     tree))
 
 (defmethod rb-node-class ((tree persistent-red-black-tree))
   'persistent-red-black-node)
@@ -205,10 +213,11 @@
 (defmethod prb-open-storage ((storage red-black-tree-memory-storage))
   )
 
-(defmethod prb-load ((storage red-black-tree-memory-storage) id)
-  (aref (objects storage) id))
+(defmethod prb-load ((storage red-black-tree-memory-storage) *rb-transaction* location)
+  (declare (ignorable *rb-transaction*))
+  (aref (objects storage) location))
 
-(defmethod prb-save ((storage red-black-tree-memory-storage) id object)
+(defmethod prb-save ((storage red-black-tree-memory-storage) *rb-transaction* id object)
   (with-slots (objects) storage
     (adjust-array objects (max (+ 1 id) (length objects)))
     (setf (aref objects id) object)))
@@ -224,7 +233,7 @@
 			 #'<))
 	(storage (storage (tree *rb-transaction*))))
     (loop for id in ids
-       do (prb-save storage id (object-for-id *rb-transaction* id)))
+       do (prb-save storage *rb-transaction* id (object-for-id *rb-transaction* id)))
     (when (new-root *rb-transaction*)
           (setf (root storage) (new-root *rb-transaction*))
       	  (setf (slot-value (tree *rb-transaction*) 'root) (new-root *rb-transaction*)))))
