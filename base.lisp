@@ -407,5 +407,5 @@
       (with-slots (parent left right color key data) obj      
 	(if (eq obj parent)
 	    (format stream "T.nil")
-	    (format stream "Color=~s Key=~s Data=~s ~_Left=~<~s~:> ~_Right=~<~s~:>" color key data left right))))))
+	    (format stream "Color=~s Key=~s Data=~s ~_Left=~<~s~> ~_Right=~<~s~>" color key data left right))))))
 
