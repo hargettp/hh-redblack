@@ -87,6 +87,9 @@
 (defgeneric rb-previous (tree node)
   (:documentation "Return the node with the next lower (aka previous) key in the tree"))
 
+(defgeneric rb-keys (tree)
+  (:documentation "Return all keys of the tree as an ordered list; not recommended for large trees"))
+
 ;; ---------------------------------------------------------------------------------------------------------------------
 ;; generics
 ;; ---------------------------------------------------------------------------------------------------------------------
@@ -230,7 +233,14 @@
 	 (setf (left (parent u)) v))
 	(t 
 	 (setf (right (parent u)) v)))
-  (setf (parent v) (parent u))
+  ;; TODO something broken in the persistent case here, as 
+  ;; we haven't detected that v is actally the leaf node,
+  ;; so we try to modify it anyway
+  ;; Adding test for safety--may be appropriate in the general case,
+  ;; since entirely possible that v has arrived here as a leaf (no test in rb-delete, for example)
+  (unless (eq (leaf tree) v)
+    (setf (parent v) (parent u)))
+  ;; (setf (parent v) (parent u))
   v)
 
 (defmethod rb-delete-fixup ((tree red-black-tree) (node red-black-node))
@@ -393,13 +403,19 @@
 	     (declare (ignorable ,key-var ,data-var))
 	     ,@body))))
 
+(defmethod rb-keys ((tree red-black-tree))
+  (let ((keys ()))
+    (with-rb-keys-and-data (key data :first) tree
+			   (setf keys (append keys (list key))))
+    keys))
+
 ;; ---------------------------------------------------------------------------------------------------------------------
 ;; printing
 
 (defmethod print-object ((obj red-black-tree) stream)
   (print-unreadable-object (obj stream :type t :identity t)
     (with-slots (root) obj
-      (format stream "~_Root=~<~s~:>" root))))
+      (format stream "~_Root=~<~s~>" root))))
 
 (defmethod print-object ((obj red-black-node) stream)
   (with-slots (parent left right color key data) obj

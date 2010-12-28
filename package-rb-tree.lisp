@@ -14,6 +14,7 @@
    #:rb-get
    #:rb-remove
    #:rb-size
+   #:rb-keys
    #:with-rb-keys-and-data
    #:with-rb-transaction
 
