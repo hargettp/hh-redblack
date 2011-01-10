@@ -7,6 +7,31 @@
 ;; ---------------------------------------------------------------------------------------------------------------------
 
 ;; ---------------------------------------------------------------------------------------------------------------------
+;; Interfaces
+;; ---------------------------------------------------------------------------------------------------------------------
+
+;; Nodes
+
+(macrolet 
+    ((define-slot (name)
+       `(progn
+	  (defgeneric ,name (node))
+	  (defgeneric (setf ,name) (value node)))))
+  (define-slot parent)
+  (define-slot left)
+  (define-slot right)
+  (define-slot color)
+  (define-slot key)
+  (define-slot data))
+
+;; Trees
+
+(defgeneric root (tree))
+(defgeneric (setf root) (value tree))
+
+(defgeneric leafp (tree node))
+
+;; ---------------------------------------------------------------------------------------------------------------------
 ;; types
 ;; ---------------------------------------------------------------------------------------------------------------------
 
@@ -91,11 +116,14 @@
   (:documentation "Return all keys of the tree as an ordered list; not recommended for large trees"))
 
 ;; ---------------------------------------------------------------------------------------------------------------------
-;; generics
+;; implementation
 ;; ---------------------------------------------------------------------------------------------------------------------
 
 (defmethod rb-make-node ((tree red-black-tree) &key ((:key key) nil) ((:data data) nil))
   (make-instance (rb-node-class tree) :key key :data data))
+
+(defmethod leafp ((tree red-black-tree) (node red-black-node))
+  (eql node (leaf tree)))
 
 (defmethod initialize-instance :after ((tree red-black-tree)  &key)
   (let ((leaf (rb-make-node tree)))
@@ -110,7 +138,7 @@
   (let ((z node)
 	(y (leaf tree))
 	(x (root tree)))
-    (loop until (eq x (leaf tree))
+    (loop until (leafp tree x)
        do (progn
 	    (setf y x)
 	    (cond ((rb< (key z) (key x))
@@ -118,7 +146,7 @@
 		  (t
 		   (setf x (right x))))))
     (setf (parent z) y)
-    (cond ((eq y (leaf tree))
+    (cond ((leafp tree y)
 	   (setf (root tree) z))
 	  ((rb< (key z) (key y))
 	   (setf (left y) z))
@@ -168,10 +196,10 @@
   (let* ((x node)
 	 (y (right x)))
     (setf (right x) (left y))
-    (when (not (eq (left y) (leaf tree)))
+    (when (not (leafp tree (left y)))
 	(setf (parent (left y)) x))
     (setf (parent y) (parent x))
-    (cond ((eq (parent x) (leaf tree))
+    (cond ((leafp tree (parent x))
 	   (setf (root tree) y))
 	  ((eq x (left (parent x)))
 	   (setf (left (parent x)) y))
@@ -185,10 +213,10 @@
   (let* ((x node)
 	 (y (left x)))
     (setf (left x) (right y))
-    (when (not (eq (right y) (leaf tree)))
+    (when (not (leafp tree (right y)))
 	(setf (parent (right y)) x))
     (setf (parent y) (parent x))
-    (cond ((eq (parent x) (leaf tree))
+    (cond ((leafp tree (parent x))
 	   (setf (root tree) y))
 	  ((eq x (left (parent x)))
 	   (setf (left (parent x)) y))
@@ -203,10 +231,10 @@
 	 (y z)
 	 (y-original-color (color y))
 	 x)
-    (cond ((eq (left z) (leaf tree))
+    (cond ((leafp tree (left z))
 	   (setf x (right z))
 	   (rb-transplant tree z (right z)))
-	  ((eq (right z) (leaf tree))
+	  ((leafp tree (right z))
 	   (setf x (left z))
 	   (rb-transplant tree z (left z)))
 	  (t
@@ -227,7 +255,7 @@
       (rb-delete-fixup tree x))))
 
 (defmethod rb-transplant ((tree red-black-tree) (u red-black-node) (v red-black-node))
-  (cond ((eq (parent u) (leaf tree))
+  (cond ((leafp tree (parent u))
 	 (setf (root tree) v))
 	((eq u (left (parent u)))
 	 (setf (left (parent u)) v))
@@ -238,7 +266,7 @@
   ;; so we try to modify it anyway
   ;; Adding test for safety--may be appropriate in the general case,
   ;; since entirely possible that v has arrived here as a leaf (no test in rb-delete, for example)
-  (unless (eq (leaf tree) v)
+  (unless (leafp tree v)
     (setf (parent v) (parent u)))
   ;; (setf (parent v) (parent u))
   v)
@@ -295,28 +323,28 @@
     (setf (color x) :black)))
 
 (defmethod rb-tree-minimum ((tree red-black-tree) (node red-black-node))
-  (unless (eq node (leaf tree))
+  (unless (leafp tree node)
     (loop with x = node
-       while (not (eq (left x) (leaf tree)))
+       while (not (leafp tree (left x)))
        do (setf x (left x))
        finally (return x))))
 
 (defmethod rb-tree-maximum ((tree red-black-tree) (node red-black-node))
-  (unless (eq node (leaf tree))
+  (unless (leafp tree node)
     (loop with x = node
-       while (not (eq (right x) (leaf tree)))
+       while (not (leafp tree (right x)))
        do (setf x (right x))
        finally (return x))))
 
 (defmethod rb-find ((tree red-black-tree) key)
   (loop with node = (root tree)
-     until (eq node (leaf tree))
+     until (leafp tree node)
      for comparison = (rb-key-compare key (key node))
      until (eq :equal comparison)
      do (if (eq :less comparison)
 	    (setf node (left node))
 	    (setf node (right node)))
-     finally (unless (eq node (leaf tree))
+     finally (unless (leafp tree node)
 	       (return node))))
 
 (defmethod rb< (left right)
@@ -356,7 +384,7 @@
      with nodes = (list (root tree))
      while nodes
      for node = (pop nodes)
-     unless (eq node (leaf tree))
+     unless (leafp tree node)
      do (progn
 	  (incf count)
 	  (push (left node) nodes)
@@ -370,22 +398,22 @@
   (rb-tree-maximum tree (root tree)))
 
 (defmethod rb-next ((tree red-black-tree) (node red-black-node))
-  (cond ((eq node (leaf tree))
+  (cond ((leafp tree node)
 	 nil) 
-	((not (eq (right node) (leaf tree)))
+	((not (leafp tree (right node)))
 	 (rb-tree-minimum tree (right node)))
 	(t (loop for start = node then (parent start)
-	      if (eq (parent start) (leaf tree)) return nil
+	      if (leafp tree (parent start)) return nil
 	      until (eq start (left (parent start)))
 	      finally (return (parent start))))))
 
 (defmethod rb-previous ((tree red-black-tree) (node red-black-node))
-  (cond ((eq node (leaf tree))
+  (cond ((leafp tree node)
 	 nil) 
-	((not (eq (left node) (leaf tree)))
+	((not (leafp tree (left node)))
 	 (rb-tree-maximum tree (left node)))
 	(t (loop for start = node then (parent start)
-	      if (eq (parent start) (leaf tree)) return nil
+	      if (leafp tree (parent start)) return nil
 	      until (eq start (right (parent start)))
 	      finally (return (parent start))))))
 
