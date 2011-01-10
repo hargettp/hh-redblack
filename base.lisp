@@ -12,6 +12,8 @@
 
 ;; Nodes
 
+(defclass red-black-node () ())
+
 (macrolet 
     ((define-slot (name)
        `(progn
@@ -26,6 +28,8 @@
 
 ;; Trees
 
+(defclass red-black-tree () ())
+
 (defgeneric root (tree))
 (defgeneric (setf root) (value tree))
 
@@ -34,18 +38,6 @@
 ;; ---------------------------------------------------------------------------------------------------------------------
 ;; types
 ;; ---------------------------------------------------------------------------------------------------------------------
-
-(defclass red-black-node ()
-  ((parent :initform nil :accessor parent)
-   (left :initform nil :accessor left)
-   (right :initform nil :accessor right)
-   (color :initform nil :accessor color)
-   (key :initform nil :initarg :key :accessor key)
-   (data :initform nil :initarg :data :accessor data)))
-
-(defclass red-black-tree ()
-  ((root :accessor root)
-   (leaf :accessor leaf)))
 
 ;; ---------------------------------------------------------------------------------------------------------------------
 ;; generics
