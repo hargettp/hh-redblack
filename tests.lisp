@@ -131,7 +131,6 @@
       (rb-put tree 5 "five")
       (rb-put tree 3 "three")
       (rb-put tree 2 "two")
-      ;; (format *standard-output* "Test 1~%")
       (assert-equal `(1 2 3 4 5) 
 		    (let ((keys ()))
 		      (with-rb-keys-and-data (key data :first) tree
@@ -145,24 +144,31 @@
     (rb-put tree 5 "five")
     (rb-put tree 3 "three")
     (rb-put tree 2 "two")
-    ;; (format *standard-output* "Test 2~%")
     (assert-equal `(1 2 3 4 5) 
 		  (let ((keys ()))
 		    (with-rb-keys-and-data (key data :first) tree
 					   (setf keys (append keys (list key))))
 		    keys)))
+
   (with-rb-transaction (tree)
     (rb-remove tree 3)
+    (assert-equal `(1 2 4 5) 
+		  (let ((keys ()))
+    		    (with-rb-keys-and-data (key data :first) tree
+    					   (setf keys (append keys (list key))))
+    		    keys)))
+
+  (with-rb-transaction (tree)
     (rb-remove tree 4)
     (assert-equal `(1 2 5) 
 		  (let ((keys ()))
     		    (with-rb-keys-and-data (key data :first) tree
     					   (setf keys (append keys (list key))))
     		    keys)))
+
   (with-rb-transaction (tree)
     (rb-put tree 3 "three")
     (rb-put tree 4 "four")
-    ;; (format *standard-output* "Test 3~%")
     (assert-equal `(1 2 3 4 5) 
 		  (let ((keys ()))
     		    (with-rb-keys-and-data (key data :first) tree

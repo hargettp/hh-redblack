@@ -22,7 +22,11 @@
   ((file-name :initarg :file-name :accessor file-name)))
 
 (defclass persistent-red-black-node (red-black-node)
-  ())
+  ((left :initform nil :accessor left)
+   (right :initform nil :accessor right)
+   (color :initform nil :accessor color)
+   (key :initform nil :initarg :key :accessor key)
+   (data :initform nil :initarg :data :accessor data)))
 
 (defclass persistent-red-black-tree (red-black-tree)
   ((storage :initform (make-instance 'red-black-tree-memory-storage) :initarg :storage :accessor storage)
@@ -33,6 +37,7 @@
 (defclass red-black-tree-transaction ()
   ((tree :initarg :tree :accessor tree) 
    (new-root :initform nil :accessor new-root)
+   (parents :initform (make-hash-table ) :accessor parents :documentation "For mapping objects to their parent objects")
    (next-id :initform -1 :accessor next-id)
    (next-location :initform nil :accessor next-location)
    (object-to-id :initform (make-hash-table)  :accessor object-to-id 
@@ -71,6 +76,10 @@
 (defgeneric add-changed-object (transaction object))
 
 (defgeneric add-opened-object (transaction object id))
+
+(defgeneric add-child-object (transaction parent child))
+
+(defgeneric changedp (transaction object))
 
 (defgeneric prb-open-storage (storage)
   (:documentation "Prepare storage for use; after this call load & save operations should succeed"))
@@ -125,20 +134,32 @@
 		  (require-rb-transaction)
 		  (let ((id (call-next-method)))
 		    (or (object-for-id *rb-transaction* id)
-			(let ((node (prb-load (storage (tree *rb-transaction*)) id)))
-			  (add-opened-object *rb-transaction* node id)
-			  node))))
+			(let ((new-node (prb-load (storage (tree *rb-transaction*)) id)))
+			  (add-opened-object *rb-transaction* new-node id)
+			  (add-child-object *rb-transaction* node new-node)
+			  new-node))))
 
 		(defmethod (setf ,slot) :around (value (node persistent-red-black-node))
 		  (require-rb-transaction)
 		  (add-changed-object *rb-transaction* node)
 		  (call-next-method (id-for-object *rb-transaction* value) node)))))
-  (declare-slot-translation parent)
   (declare-slot-translation left)
   (declare-slot-translation right)
   (declare-slot-translation data))
 
-(defmethod (setf color) (color (node persistent-red-black-node))
+(defmethod parent ((node persistent-red-black-node))
+  (require-rb-transaction)
+  (let ((tree (tree *rb-transaction*)))
+    (if (leafp tree node)
+	(leaf tree)
+	(or (gethash node (parents *rb-transaction*))
+	    (leaf tree)))))
+
+(defmethod (setf parent) (value (node persistent-red-black-node))
+  (require-rb-transaction)
+  (add-child-object *rb-transaction* value node))
+
+(defmethod (setf color) :around (color (node persistent-red-black-node))
   (require-rb-transaction)
   (add-changed-object *rb-transaction* node)
   (call-next-method))
@@ -207,22 +228,35 @@
     (add-new-object *rb-transaction* node)
     node))
 
+(defmethod leafp ((tree persistent-red-black-tree) ;; (node persistent-red-black-node)
+		  node)
+  (when node
+      (= 0 (id-for-object *rb-transaction* node))))
+
 (defmethod add-new-object ((*rb-transaction* red-black-tree-transaction) object)
   (let ((new-id (id-for-object *rb-transaction* object)))
     (setf (gethash new-id (changes *rb-transaction*)) object))
-  ;; (format *standard-output* "Change count is ~s~%" (hash-table-count (changes *rb-transaction*)))
   object)
 
 (defmethod add-changed-object ((*rb-transaction* red-black-tree-transaction) object)
-  ;; (when (and (typep object 'persistent-red-black-node)
-  ;; 	     (= 2 (slot-value object 'key)))
-  ;;   (break))
-  (setf (gethash (id-for-object *rb-transaction* object) (changes *rb-transaction*)) 
-	object))
+  (when object
+    (unless (leafp (tree *rb-transaction*) object)
+      (unless (changedp *rb-transaction* object)
+	(setf (gethash (id-for-object *rb-transaction* object) (changes *rb-transaction*)) 
+	      object)
+	;; now make sure all ancestors up to root are changed
+	(add-changed-object *rb-transaction* (parent object))))))
 
-(defmethod add-opened-object ((*rb-transaction* red-black-tree-transaction) object id)  
+(defmethod add-opened-object ((*rb-transaction* red-black-tree-transaction) object id)
   (setf (gethash object (object-to-id *rb-transaction*)) id)
   (setf (gethash id (id-to-object *rb-transaction*)) object))
+
+(defmethod add-child-object ((*rb-transaction* red-black-tree-transaction) parent child)
+  (setf (gethash child (parents *rb-transaction*)) parent)
+  parent)
+
+(defmethod changedp ((*rb-transaction* red-black-tree-transaction) object)
+  (gethash (id-for-object *rb-transaction* object) (changes *rb-transaction*)))
 
 (defmacro with-rb-transaction ((tree) &rest body)
   `(let* ((existing-transaction *rb-transaction*) 
@@ -264,7 +298,7 @@
   1)
 
 (macrolet ((copy-node (dest-class source-node &rest slots)
-	     `(let ((dest-node (make-instance ',dest-class :key (slot-value ,source-node 'key) :data (slot-value ,source-node 'data))))
+	     `(let ((dest-node (make-instance ',dest-class)))
 		(setf ,@(loop for slot in slots
 			   append `( (slot-value dest-node ',slot)
 				     (slot-value ,source-node ',slot) )))
@@ -272,21 +306,19 @@
 
   (defmethod prb-load ((storage red-black-tree-memory-storage) id)
     (let ((stored-object (aref (objects storage) id)))
-      ;; (format *standard-output* "Loading from ~s object ~s~%" id stored-object)
       (cond ((typep stored-object 'memory-red-black-node)
-	     (copy-node persistent-red-black-node stored-object color parent left right))
+	     (copy-node persistent-red-black-node stored-object key data color left right))
 	    (t ;; data
 	     stored-object))))
 
   (defmethod prb-save ((storage red-black-tree-memory-storage) object)
     (with-slots (objects) storage
       (let ((stored-object (cond ((typep object 'persistent-red-black-node)
-				  (copy-node memory-red-black-node object color parent left right))
+				  (copy-node persistent-red-black-node object key data color left right))
 				 (t ;; data
 				  object)))
 	    (location (prb-location storage)))
-	(adjust-array objects (+ 1 location))
-	;; (format *standard-output* "Saving to ~s object ~s~%" location stored-object)
+	(adjust-array objects (+ 1 location)) ;; TODO is this correct?  are we 1 longer than needed?
 	(setf (aref objects location) stored-object)))))
 
 (defmethod prb-get-root ((storage red-black-tree-memory-storage))
@@ -296,23 +328,13 @@
   (setf (root storage) root))
 
 (defmethod prb-abort ((*rb-transaction* red-black-tree-transaction))
-  (setf (new-root *rb-transaction*) nil)
-  (clrhash (object-to-id *rb-transaction*))
-  (clrhash (id-to-object *rb-transaction*))
-  (clrhash (changes *rb-transaction*)))
+  (initialize-instance *rb-transaction*))
 
 (defmethod prb-commit ((*rb-transaction* red-black-tree-transaction))  
   (let ((storage (storage (tree *rb-transaction*)))
 	(new-root-location nil)
 	(new-data-count 0)
 	(new-node-count 0))
-
-    ;; (format *standard-output* "Starting commit~%")
-
-    ;; Automatically add the root to the set of changes, because it must always change
-    ;; if there are any other changes
-    (when (> (hash-table-count (changes *rb-transaction*)) 0)
-      (add-changed-object *rb-transaction* (root (tree *rb-transaction*))))
 
     ;; expand set of changed nodes to include all ancestors of any changed nodes,
     ;; and repeat until unable to add more nodes to set
@@ -329,42 +351,30 @@
 		    (unless (eq (leaf tree) parent)
 		      (let ((parent-id (id-for-object *rb-transaction* parent)))
 			(unless (gethash parent-id changes)
-			    ;; (format *standard-output* "Id ~s for object ~s already in changes~%" parent-id object)
 			  (setf (gethash parent-id new-changes) parent))))))
 	 until (= 0 (hash-table-count new-changes))
 	 do (loop for changed-id being the hash-keys of new-changes
 	       for changed-object = (gethash changed-id new-changes)
-	       ;; do (format *standard-output* "Adding parent id ~s to set of changes~%" changed-id)
 	       do (setf (gethash changed-id changes) changed-object))))
 
-    ;; (format *standard-output* "Change count is ~s~%" (hash-table-count (changes *rb-transaction*)))
     ;; allocate locations for data
     (loop for id being the hash-keys of (changes *rb-transaction*)
        for object = (object-for-id *rb-transaction* id)
-       ;; do (format *standard-output* "Reviewing for allocation ~s~%" object)
        unless (typep object 'red-black-node)
        do (progn 
 	    (assign-location storage *rb-transaction* object)
 	    (incf new-data-count)))
+
     ;; allocate locations for nodes
     (loop for id being the hash-keys of (changes *rb-transaction*)
        for object = (object-for-id *rb-transaction* id)
-       ;; do (format *standard-output* "Reviewing for allocation ~s~%" object)
        when (typep object 'red-black-node)
        do (progn 
 	    (assign-location storage *rb-transaction* object)
 	    (incf new-node-count))
        when (eq object (root (tree *rb-transaction*)))
        do (let ((new-root (root (tree *rb-transaction*))))
-	    (setf new-root-location (location-for-object *rb-transaction* new-root))
-	    ;; (format *standard-output* "Found root; allocated location ~s~%" new-root-location)
-	    ))
-    ;; allocate location for new root, if necessary
-    ;; (when (new-root *rb-transaction*)
-    ;;   (let ((new-root (root (tree *rb-transaction*))))
-    ;; 	(setf new-root-location (or (location-for-object *rb-transaction* new-root)
-    ;; 				    (assign-location storage *rb-transaction* new-root)))
-    ;; 	(format *standard-output* "Allocated location for root ~s at ~s~%" new-root new-root-location)))
+	    (setf new-root-location (location-for-object *rb-transaction* new-root))))
 
     ;; save data  
     (loop for i from 1 to new-data-count
@@ -390,31 +400,22 @@
 								(location-for-object *rb-transaction* mapped-object)
 								;; old object--but did it move?
 								(or (location-for-object *rb-transaction* mapped-object) mapped-id))))
-				      ;; (format *standard-output* "Mapped id ~s to location ~s for node ~s at ~s~%" mapped-id mapped-location node (prb-location storage))
 				      (setf (slot-value node ',slot) mapped-location)))))
-		      (map-slot-to-location parent)
 		      (map-slot-to-location left)
 		      (map-slot-to-location right)
 		      (map-slot-to-location data)
 		      node)))
     ;; save root--if we haven't already saved it
     (when (and new-root-location (equal new-root-location (prb-location storage)))
-      ;; (format *standard-output* "Saving root ~s~%" (root (tree *rb-transaction*)))
       (prb-save storage (root (tree *rb-transaction*))))
-    ;; (format *standard-output* "Would set for new root ~s~%" new-root-location)
     (when new-root-location
       (prb-set-root storage new-root-location)
-      (setf (slot-value (tree *rb-transaction*) 'root) new-root-location))
-    ;; (format *standard-output* "Finished commit~%")
-    ))
+      (setf (slot-value (tree *rb-transaction*) 'root) new-root-location))))
 
 ;; ---------------------------------------------------------------------------------------------------------------------
 ;; printing
 
-(defmethod print-object ((obj red-black-node) stream)
-  (with-slots (parent left right color key data) obj
+(defmethod print-object ((obj persistent-red-black-node) stream)
     (print-unreadable-object (obj stream :type t :identity t)
-      (with-slots (parent left right color key data) obj      
-	(if (eq obj parent)
-	    (format stream "T.nil")
-	    (format stream "Color=~s Key=~s Data=~s ~_Parent=~<~s~> ~_Left=~<~s~> ~_Right=~<~s~>" color key data parent left right))))))
+      (with-slots (left right color key data) obj
+	(format stream "Color=~s Key=~s Data=~s ~_Left=~<~s~> ~_Right=~<~s~>" color key data left right))))
