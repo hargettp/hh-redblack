@@ -274,7 +274,9 @@
   (setf (tree *rb-transaction*) tree))
 
 (defun make-persistent-red-black-tree (&key ((:storage storage) (make-instance 'red-black-tree-memory-storage)))
-  (with-rb-transaction ((make-instance 'persistent-red-black-tree :storage storage))))
+  (with-rb-transaction ((make-instance 'persistent-red-black-tree :storage storage))
+    ;; yes, this seems weird; may be correct, given the relationship between trees and transactions
+    (tree *rb-transaction*)))
 
 (defmethod rb-node-class ((tree persistent-red-black-tree))
   'persistent-red-black-node)
