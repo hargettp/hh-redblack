@@ -433,15 +433,17 @@
 ;; printing
 
 (defmethod print-object ((obj red-black-tree) stream)
-  (print-unreadable-object (obj stream :type t :identity t)
-    (with-slots (root) obj
-      (format stream "~_Root=~<~s~>" root))))
+  (let ((*print-circle* t))
+    (print-unreadable-object (obj stream :type t :identity t)
+      (with-slots (root) obj
+	(format stream "~_Root=~<~s~>" root)))))
 
 (defmethod print-object ((obj red-black-node) stream)
-  (with-slots (parent left right color key data) obj
-    (print-unreadable-object (obj stream :type t :identity t)
-      (with-slots (parent left right color key data) obj      
-	(if (eq obj parent)
-	    (format stream "T.nil")
-	    (format stream "Color=~s Key=~s Data=~s ~_Left=~<~s~> ~_Right=~<~s~>" color key data left right))))))
+  (let ((*print-circle* t))
+    (with-slots (parent left right color key data) obj
+      (print-unreadable-object (obj stream :type t :identity t)
+	(with-slots (parent left right color key data) obj      
+	  (if (eq obj parent)
+	      (format stream "T.nil")
+	      (format stream "Color=~s Key=~s Data=~s ~_Left=~<~s~> ~_Right=~<~s~>" color key data left right)))))))
 

@@ -12,9 +12,11 @@
   ((:file "package-rb-tree") 
    (:file "base")
    (:file "memory" :depends-on ("package-rb-tree" "base"))
-   (:file "persistent" :depends-on ("package-rb-tree" "base")))
+   (:file "persistent" :depends-on ("package-rb-tree" "base"))
+   ;; (:file "text" :depends-on ("persistent"))
+   )
   :depends-on
-  nil)
+  ( ))
 
 (asdf:defsystem rb-tree-tests
   :name
