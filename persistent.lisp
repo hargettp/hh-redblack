@@ -145,9 +145,20 @@
 	     (declare (ignorable condition))
 	    (format stream "Accessing a persistent red-black tree requires a transaction; wrap code in a with-rb-transaction form"))))
 
+(define-condition transaction-aborted ()
+  ()
+  (:report (lambda (condition stream)
+	     (declare (ignorable condition))
+	     (format stream "Transaction aborted"))))
+
 (defun require-rb-transaction ()
   (unless *rb-transaction*
     (error 'requires-red-black-transaction)))
+
+(defun clear-changes ()
+  (loop with changes = (changes *rb-transaction*)
+     until (= 0 (length changes))
+     do (vector-pop changes)))
 
 (defgeneric loaded-p (node)
   (:method ((node persistent-red-black-node))
@@ -328,6 +339,11 @@
       node)))
 
 (defmethod prb-save-node ((tree persistent-red-black-tree) (node persistent-red-black-node))
+  ;; since it's possible that the node has not been loaded (e.g., if it was an ancestor of
+  ;; a changed node), make sure it is loaded first
+  ;; NOTE: this may limit some implementations, as this code assumes direct slot access is
+  ;; valid after loading--thus short-circuiting slot accessors
+  (prb-load-node tree node)
   (with-slots (left right color key data) node
     (prb-stash-node tree (location left) (location right) color key (when data (location data)))))
 

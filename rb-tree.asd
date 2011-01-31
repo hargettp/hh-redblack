@@ -13,7 +13,7 @@
    (:file "base")
    (:file "memory" :depends-on ("package-rb-tree" "base"))
    (:file "persistent" :depends-on ("package-rb-tree" "base"))
-   ;; (:file "text" :depends-on ("persistent"))
+   (:file "text" :depends-on ("persistent"))
    )
   :depends-on
   ( ))

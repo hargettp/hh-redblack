@@ -9,6 +9,7 @@
 
    #:make-red-black-tree   
    #:make-persistent-red-black-tree
+   #:make-text-file-red-black-tree
 
    #:rb-put
    #:rb-get

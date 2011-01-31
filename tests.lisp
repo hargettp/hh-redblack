@@ -105,26 +105,33 @@
     					   (setf keys (append keys (list key))))
     		    keys))))
 
+(defmacro with-temporary-tree (var) &rest body
+  `(let ((temp-file-name (format nil "text-~s.tree" (random (expt 2 32)))))
+     (unwind-protect 
+	  (let ((,var (make-text-file-red-black-tree temp-file-name)))
+	    ,@body)
+	  (delete-file temp-file-name))))
+
 (define-test peristent-red-black-tree-tests
-  (let ((tree (make-persistent-red-black-tree)))
+  (with-temporary-tree (tree)
     (assert-true tree))
 
-  (let ((tree (make-persistent-red-black-tree)))
+  (with-temporary-tree (tree)
     (assert-error 'requires-red-black-transaction
     		  (rb-put tree 1 "one")))
 
-  (let ((tree (make-persistent-red-black-tree)))
+  (with-temporary-tree (tree)
     (with-rb-transaction (tree)
       (rb-put tree 1 "one"))
     (assert-error 'requires-red-black-transaction
     		  (rb-get tree 1)))
 
-  (let ((tree (make-persistent-red-black-tree)))
+  (with-temporary-tree (tree)
     (with-rb-transaction (tree)
       (rb-put tree 1 "one")
       (assert-eq :black (rb-tree::color (rb-tree::root tree)))))
 
-  (let ((tree (make-persistent-red-black-tree)))
+  (with-temporary-tree (tree)
     (with-rb-transaction (tree)
       (rb-put tree 4 "four")
       (rb-put tree 1 "one")
@@ -137,7 +144,7 @@
 					     (setf keys (append keys (list key))))
 		      keys))))
 
-(let ((tree (make-persistent-red-black-tree)))
+(with-temporary-tree (tree)
   (with-rb-transaction (tree)
     (rb-put tree 4 "four")
     (rb-put tree 1 "one")
