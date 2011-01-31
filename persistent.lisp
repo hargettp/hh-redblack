@@ -304,7 +304,7 @@
 (defmethod initialize-instance :before ((tree persistent-red-black-tree)  &key)
   (setf (tree *rb-transaction*) tree))
 
-(defun make-persistent-red-black-tree () ;; TODO consider having an argument for the tree class
+(defun make-memory-persistent-red-black-tree () ;; TODO consider having an argument for the tree class
   (let ((tree nil))
     (with-rb-transaction ((setf tree  (make-instance 'memory-persistent-red-black-tree)))
       tree)))
