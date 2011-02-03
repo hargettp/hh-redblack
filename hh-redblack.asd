@@ -23,24 +23,29 @@
 
 (in-package :hh-redblack-asd)
 
-(defpackage :hh-redblack
-  (:use :cl)
-  (:export
+(asdf:defsystem hh-redblack
+  :name
+  "hh-redblack"
+  :version
+  "0.1"
+  :components
+  ((:file "package-hh-redblack") 
+   (:file "base")
+   (:file "memory" :depends-on ("package-hh-redblack" "base"))
+   (:file "persistent" :depends-on ("package-hh-redblack" "base"))
+   (:file "text" :depends-on ("persistent"))
+   )
+  :depends-on
+  ( ))
 
-   #:make-red-black-tree   
-   #:make-memory-persistent-red-black-tree
-   #:make-text-file-red-black-tree
+(asdf:defsystem hh-redblack-tests
+  :name
+  "hh-redblack-tests"
+  :version
+  "0.1"
+  :components
+  ((:file "tests"))
+  :depends-on
+  ("hh-redblack" "lisp-unit"))
 
-   #:rb-put
-   #:rb-get
-   #:rb-remove
-   #:rb-size
-   #:rb-keys
-   #:with-rb-keys-and-data
-   #:with-rb-transaction
 
-   #:rb-key-compare
-
-   #:requires-red-black-transaction
-
-   ))
