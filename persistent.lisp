@@ -11,14 +11,14 @@
 ;; types
 ;; ---------------------------------------------------------------------------------------------------------------------
 
-(deftype node-unloaded () `(eql :unloaded))
+(deftype object-unloaded () `(eql :unloaded))
 
-(deftype node-loaded () `(or (eql :loaded)
+(deftype object-loaded () `(or (eql :loaded)
 			     (eql :changed)
 			     (eql :new)))
 
-(deftype node-state () `(or node-unloaded
-			   node-loaded))
+(deftype node-state () `(or object-unloaded
+			   object-loaded))
 
 (defclass persistent-red-black-object ()
   ((state :type node-state :initform :new :initarg :state :accessor state) 
@@ -160,9 +160,9 @@
      until (= 0 (length changes))
      do (vector-pop changes)))
 
-(defgeneric loaded-p (node)
-  (:method ((node persistent-red-black-node))
-    (typep (state node) 'node-loaded)))
+(defgeneric loaded-p (object)
+  (:method ((object persistent-red-black-object))
+    (typep (state object) 'object-loaded)))
 
 (defgeneric ancestor-p (node possible-ancestor)
   (:method ((node persistent-red-black-node) (possible-ancestor persistent-red-black-node))
@@ -208,6 +208,11 @@
   (add-changed-object *rb-transaction* node)
   (let ((data (rb-make-data (tree *rb-transaction*) :contents value)))
     (call-next-method data node)))
+
+(defmethod contents :around ((data persistent-red-black-data))
+  (require-rb-transaction)
+  (prb-load-data (tree *rb-transaction*) data)
+  (call-next-method))
 
 (defmethod parent ((node persistent-red-black-node))
   (require-rb-transaction)
@@ -348,7 +353,8 @@
     (prb-stash-node tree (location left) (location right) color key (when data (location data)))))
 
 (defmethod prb-load-data ((tree persistent-red-black-tree) (data persistent-red-black-data))
-  (setf (contents data) (prb-fetch-data tree (location data))))
+  (unless (loaded-p data)
+    (setf (contents data) (prb-fetch-data tree (location data)))))
 
 (defmethod prb-save-data ((tree persistent-red-black-tree) (data persistent-red-black-data))
   (prb-stash-data tree (contents data)))
