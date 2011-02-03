@@ -368,13 +368,27 @@
   (:method ((left t) (right t))
     nil))
 
+(defun sort-into-save-order (changes)
+  (let ((sorted-changes ())
+	(unsorted-changes (loop for change across changes collect change))
+	(next-unsorted-changes ()))
+    (loop while unsorted-changes   
+       do (loop for change in unsorted-changes
+	     if (loop for other in unsorted-changes
+		   if (compare-save-order other change) return nil
+		   finally (return t))
+	     do (push change sorted-changes)
+	     else do (push change next-unsorted-changes))
+       do (setf unsorted-changes next-unsorted-changes)
+       do (setf next-unsorted-changes ()))
+    (reverse sorted-changes)))
+
 (defmethod prb-commit ((*rb-transaction* red-black-tree-transaction))
-  (let* ((tree (tree *rb-transaction*)))
-    ;; sort changed objects so that objects are written before references
-    ;; to them need to be written (thus, leaves first)
-    (sort (changes *rb-transaction*) #'compare-save-order)
-    ;; (format *standard-output* "Changes are ~s~%" (changes *rb-transaction*))
-    (loop for object across (changes *rb-transaction*)
+  (let* ((tree (tree *rb-transaction*))
+	 ;; sort changed objects so that objects are written before references
+	 ;; to them need to be written (thus, leaves first)
+	 (sorted-changes (sort-into-save-order (changes *rb-transaction*))))
+    (loop for object in sorted-changes
        do (let ((location (prb-location tree)))
 	    (prb-save-object tree object)
 	    ;; update its location after save--other objects referencing it
