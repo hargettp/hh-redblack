@@ -10,6 +10,6 @@ uses an append-only strategy for updating that text file.  The only portion of t
 than once is the header (and its backup) that points to the current root of the tree.
 
 Contact phil@haphazardhouse.net for any questions, comments, feedback, or contributions, and keep an eye on
-http://haphazardhouse.net/projects/hh-redblack for info and news about HH-Web-Tags.
+http://haphazardhouse.net/projects/hh-redblack for info and news about hh-redblack.
 
 Thanks!
