@@ -101,8 +101,8 @@
 
 (defmacro form (number contents)
   `(make-instance 'storage-form 
-		  :number ,number 
-		  :contents ,contents))
+		   :number ,number 
+		   :contents ,contents))
 
 (defclass text-file-red-black-object (persistent-red-black-object)
   ((location :initform (make-instance 'storage-location) :initarg :location :accessor location)))
@@ -163,6 +163,7 @@
 	(open (file-name tree) :direction :io :if-exists :overwrite :if-does-not-exist :create :element-type 'character)))
 
 (defun close-storage-stream (tree)
+  (finish-output (storage-stream tree))
   (close (storage-stream tree)))
 
 (defmethod prb-open-storage ((tree text-file-red-black-tree))
@@ -264,16 +265,6 @@
 	    (location (leaf tree))))
 
 (defmethod prb-save-root ((tree text-file-red-black-tree) root)
-  (close-storage-stream tree)
-  (let* ((stream (open-storage-stream tree))
-	 (header (read-stored-object stream))
-	 (backup (read-stored-object stream))
-	 (last-header (last-header tree)))
-    (unless (and (equality last-header header)
-
-		 (equality last-header backup))
-      (close-storage-stream tree)
-      (error 'inconsistent-storage)))
   (let ((header (make-storage-header tree))
 	(stream (open-storage-stream tree)))
     (file-position stream :start)
