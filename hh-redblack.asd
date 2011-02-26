@@ -29,10 +29,10 @@
   :version
   "0.1"
   :components
-  ((:file "package-hh-redblack") 
+  ((:file "package") 
    (:file "base")
-   (:file "memory" :depends-on ("package-hh-redblack" "base"))
-   (:file "persistent" :depends-on ("package-hh-redblack" "base"))
+   (:file "memory" :depends-on ("package" "base"))
+   (:file "persistent" :depends-on ("package" "base"))
    (:file "text" :depends-on ("persistent"))
    )
   :depends-on
