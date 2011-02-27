@@ -126,7 +126,8 @@
     		    keys))))
 
 (defmacro with-temporary-tree ((var) &rest body)
-  `(let ((temp-file-name (format nil "text-~s.tree" (random (expt 2 32)))))
+  `(let ((temp-file-name (asdf:system-relative-pathname (asdf:find-system "hh-redblack") 
+							(format nil "text-~s.tree" (random (expt 2 32))))))
      (unwind-protect 
 	  (let ((,var (make-text-file-red-black-tree temp-file-name)))
 	    ,@body)

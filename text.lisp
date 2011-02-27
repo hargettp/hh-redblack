@@ -28,9 +28,11 @@
 ;; is always a fixed-size.  Accessing storage depends on all objects involved (both nodes and data) to have representations 
 ;; created by cl:print-object and readable by cl:read.
 ;;
-;; The first 2 forms of the file are reserved for the header and it's backup; the 3rd form should contain
-;; the "leaf node" representation, which in an empty tree would also be the root.  All forms are terminated by #\Newline,
-;; although that also is a convenience, and not a required delimiter between forms (because the Lisp reader does not
+;; The first form of the file is the header, which contains a version number intended to describe the version number
+;; of the file format.  The last two forms of the file are the footer and it's backup (that is, a copy of the footer
+;; used for consistency checks). The 2nd form in the file should contain the "leaf node" representation, which in an 
+;; empty tree would also be the root.  All forms are terminated by #\Newline, although that also is a convenience, 
+;; and not a required delimiter between forms (because the Lisp reader does not
 ;; require that)
 
 ;; TODO note that the use of 20-char wide columns is because (length (format nil (expt 2 64))) is 20
@@ -38,10 +40,7 @@
 (defclass text-file-red-black-tree (persistent-red-black-tree)
   ((file-name :initarg :file-name :accessor file-name)
    (stream :initform nil :accessor storage-stream)
-   (next-form-number :initform 0 :accessor next-form-number)
-   (last-header :accessor last-header 
-		:documentation "The header encountered when storage was opened; before writing a new one,
-                 a check is made that the header on disk is the same as this one")))
+   (next-form-number :initform 0 :accessor next-form-number)))
 
 (defclass storage-node ()
   ((left :initform nil :initarg :left :accessor left)
@@ -68,29 +67,36 @@
   (format stream "(LOC ~20<~s~> ~20<~s~>)" (form-number object) (offset object)))
 
 (defclass storage-header ()
-  ((version :initform 0 :initarg :version :accessor version)
-   (leaf :initform (make-instance 'storage-location) :initarg :leaf :accessor leaf)
+  ((version :initform 0 :initarg :version :accessor version)))
+
+(defmacro header (version)
+  `(make-instance 'storage-header :version ,version))
+
+(defmethod print-object ((object storage-header) stream)
+  (format stream "(HEADER ~20<~s~>)" (version object) ))
+
+(defclass storage-footer ()
+  ((leaf :initform (make-instance 'storage-location) :initarg :leaf :accessor leaf)
    (root :initform (make-instance 'storage-location) :initarg :root :accessor root)
    (next-form-number :initform 0 :initarg :next :accessor next-form-number)))
 
+(defmacro footer (leaf-location root-location next)
+  `(make-instance 'storage-footer :leaf ,leaf-location :root ,root-location :next ,next))
+
+(defmethod print-object ((object storage-footer) stream)
+  (format stream "(FOOTER ~s ~s ~20<~s~>)" (leaf object) (root object) (next-form-number object)))
+
 (defgeneric equality (left right) 
-  (:documentation "The equality test is important for detecting consistency of the header and its backup")
+  (:documentation "The equality test is important for detecting consistency of the footer and its backup")
   (:method ((left t) (right t))
     (equalp left right))
   (:method ((left storage-location) (right storage-location))
     (and (equal (form-number left) (form-number right))
 	 (equal (offset left) (offset right))))
-  (:method ((left storage-header) (right storage-header))
-    (and (equality (version left) (version right))
-	 (equality (root left) (root right))
+  (:method ((left storage-footer) (right storage-footer))
+    (and (equality (root left) (root right))
 	 (equality (leaf left) (leaf right))
 	 (equality (next-form-number left) (next-form-number right)))))
-
-(defmacro header (version leaf-location root-location next)
-  `(make-instance 'storage-header :version ,version :leaf ,leaf-location :root ,root-location :next ,next))
-
-(defmethod print-object ((object storage-header) stream)
-  (format stream "(HEADER ~20<~s~> ~s ~s ~20<~s~>)" (version object) (leaf object) (root object) (next-form-number object)))
 
 (defclass storage-form ()
   ((form-number :initarg :number :accessor form-number)
@@ -139,7 +145,10 @@
   (finish-output stream))
 
 (defun make-storage-header (tree)
-  (make-instance 'storage-header :root (location (root tree)) :leaf (location (leaf tree)) :next (next-form-number tree)))
+  (make-instance 'storage-header ))
+
+(defun make-storage-footer (tree)
+  (make-instance 'storage-footer :root (location (root tree)) :leaf (location (leaf tree)) :next (next-form-number tree)))
 
 (defmethod allocation-size ((tree text-file-red-black-tree) object)
   ;; note we're counting on storage-forms to always have the same
@@ -152,6 +161,10 @@
 (defmethod allocation-size ((tree text-file-red-black-tree) (header storage-header))
   (length (with-output-to-string (os)
 	    (write-stored-object os header))))
+
+(defmethod allocation-size ((tree text-file-red-black-tree) (footer storage-footer))
+  (length (with-output-to-string (os)
+	    (write-stored-object os footer))))
 
 (defun make-text-file-red-black-tree (file-name) ;; TODO consider having an argument for the tree class
   (let ((tree nil))
@@ -172,17 +185,19 @@
 	     "Called the first time a storage file is used--just write out 'empty'
               header, because it will be rewritten soon"
 	     (let ((header (make-storage-header tree))
+		   (footer (make-storage-footer tree))
 		   (stream (open-storage-stream tree)))
 	       (file-position stream :start)
 	       (write-stored-object stream header)
-	       (write-stored-object stream header)
+	       (write-stored-object stream footer)
+	       (write-stored-object stream footer)
 	       (file-position stream :end)
-	       (setf (last-header tree) header)))
-	   (refresh-storage (tree header)
-	     "Refresh the storage object's slots from the provided header"
+	       (finish-output stream)))
+	   (refresh-storage (tree footer)
+	     "Refresh the storage object's slots from the provided footer"
 	     (let ((leaf (make-instance (rb-node-class tree))))
 	       ;; TODO this preparation of the leaf could be generalized
-	       (setf (location leaf) (leaf header)
+	       (setf (location leaf) (leaf footer)
 		     (slot-value leaf 'left) leaf
 		     (slot-value leaf 'right) leaf
 		     (slot-value tree 'leaf) leaf
@@ -190,30 +205,32 @@
 		     (state leaf) :loaded)
 	       (assert (leafp tree leaf)))
 	     ;; must be careful to reuse the leaf, in case root is the leaf sentinel (empty tree)
-	     (unless (prb-leaf-location-p tree (root header))
+	     (unless (prb-leaf-location-p tree (root footer))
 	       (let ((root (make-instance (rb-node-class tree))))
-		 (setf (location root) (root header))
+		 (setf (location root) (root footer))
 		 (setf (state root) :unloaded
 		       (slot-value tree 'root) root)))
-	     (setf (next-form-number tree) (next-form-number header)
-		   (last-header tree) header)
+	     (setf (next-form-number tree) (next-form-number footer))
 	     (assert (loaded-p (leaf tree)))
 	     tree)
+	   (footer-location (tree)
+	     (let ((stream (storage-stream tree)))
+	       (- (file-length stream) (* 2 (allocation-size tree (make-storage-footer tree))))))
 	   (recover-storage (tree)
-	     "Check header and backup for consistency, repairing if necessary; note that
+	     "Check footer and backup for consistency, repairing if necessary; note that
               recovery should be idempotent, and always run"
 	     ;; TODO a bit of a hack, but ensures there are no side effects
 	     ;; from creating the tree object itself
 	     (clear-changes)
 	     ;; TODO consider an abort if hit an exception in here	     
 	     (let* ((stream (open-storage-stream tree)))
-	       (file-position stream :start) ;; set to beginning to read header
-	       (let ((header (read-stored-object stream))
+	       (file-position stream (footer-location tree)) ;; set to expected location to read footer
+	       (let ((footer (read-stored-object stream))
 		     (backup (read-stored-object stream)))
 		 (file-position stream :end) ;; restore file position, hopefully to end
-		 (if (equality header backup)
+		 (if (equality footer backup)
 		     ;; intact; no recovery needed
-		     (refresh-storage tree header)
+		     (refresh-storage tree footer)
 		     ;; they do not match; attempt to recover
 		     (progn
 		       (refresh-storage tree backup)
@@ -265,13 +282,12 @@
 	    (location (leaf tree))))
 
 (defmethod prb-save-root ((tree text-file-red-black-tree) root)
-  (let ((header (make-storage-header tree))
+  (let ((footer (make-storage-footer tree))
 	(stream (open-storage-stream tree)))
-    (file-position stream :start)
-    (write-stored-object stream header)
-    (write-stored-object stream header)
     (file-position stream :end)
-    (setf (last-header tree) header
-	  (state root) :unloaded
+    (write-stored-object stream footer)
+    (write-stored-object stream footer)
+    (finish-output stream)
+    (setf (state root) :unloaded
 	  (slot-value tree 'root) root)))
 
