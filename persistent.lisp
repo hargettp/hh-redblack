@@ -360,8 +360,8 @@
 		data (when data-location (let ((data-object (make-instance (rb-data-class tree) :location data-location)))
 					   (setf (state data-object) :unloaded)
 					   data-object)))))
-      (setf (state node) :loaded)
-      node)))
+      (setf (state node) :loaded)))
+  node)
 
 (defmethod prb-save-node ((tree persistent-red-black-tree) (node persistent-red-black-node))
   ;; since it's possible that the node has not been loaded (e.g., if it was an ancestor of
@@ -420,7 +420,8 @@
 	    ;; update its location after save--other objects referencing it
 	    ;; will now save a reference to the new location
 	    (setf (location object) location)))
-    (prb-save-root tree (root tree))))
+    ;; only save the root if there are changes
+    (when sorted-changes (prb-save-root tree (root tree)))))
 
 ;; ---------------------------------------------------------------------------------------------------------------------
 ;; implementation : In-memory storage -- treats a vector as storage, with indexes as locations
@@ -461,8 +462,8 @@
 (defmethod print-object ((obj persistent-red-black-node) stream)
   (let ((*print-circle* t))
     (print-unreadable-object (obj stream :type t :identity t)
-      (with-slots (location left right color key data) obj
-	(format stream "Location=~s Color=~s Key=~s Data=~s ~_Left=~<~s~> ~_Right=~<~s~>" location color key data left right)))))
+      (with-slots (location left right color key data state) obj
+	(format stream "Location=~s Color=~s Key=~s Data=~s ~_Left=~<~s~> ~_Right=~<~s~> State=~s" location color key data left right state)))))
 
 (defmethod print-object ((obj persistent-red-black-data) stream)
   (let ((*print-circle* t))

@@ -209,6 +209,27 @@
     					   (setf keys (append keys (list key))))
     		    keys)))
 
+  (let ((temp-file-name (asdf:system-relative-pathname (asdf:find-system "hh-redblack") 
+						       (format nil "text-~s.tree" (random (expt 2 32))))))
+    (unwind-protect 
+	 (progn
+	   (let ((tree (make-text-file-red-black-tree temp-file-name)))
+	     (with-rb-transaction (tree)
+	       (rb-put tree 1 "one"))
+	     (with-rb-transaction (tree)
+	       (assert-equal `(1) (rb-keys tree))))
+
+	   (let ((tree (make-text-file-red-black-tree temp-file-name)))
+	     (with-rb-transaction (tree)
+	       (rb-put tree 2 "two"))
+	     (with-rb-transaction (tree)
+	       (assert-equal `(1 2) (rb-keys tree))))
+
+	   (let ((tree (make-text-file-red-black-tree temp-file-name)))
+	     (with-rb-transaction (tree)
+	       (assert-equal `(1 2) (rb-keys tree)))))
+      (delete-file temp-file-name)))
+
   (with-rb-transaction (tree)
     (rb-put tree 3 "three")
     (rb-put tree 4 "four")

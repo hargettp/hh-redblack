@@ -119,6 +119,10 @@
 (defclass text-file-red-black-data (text-file-red-black-object persistent-red-black-data)
   ())
 
+(defgeneric allocation-size (tree object)
+  (:documentation "Size of the object persisted in the tree's storage; the units of measures for the size
+   depend on the tree's storage implementation"))
+
 ;; ---------------------------------------------------------------------------------------------------------------------
 ;; implementation : Text-file storage
 ;; ---------------------------------------------------------------------------------------------------------------------
@@ -189,8 +193,10 @@
 		   (stream (open-storage-stream tree)))
 	       (file-position stream :start)
 	       (write-stored-object stream header)
-	       (write-stored-object stream footer)
-	       (write-stored-object stream footer)
+	       (let ((leaf-location (prb-location tree)))
+	       	 (setf (leaf footer) leaf-location
+	       	       (root footer) leaf-location)
+		 (setf (slot-value (leaf tree) 'location) leaf-location))
 	       (file-position stream :end)
 	       (finish-output stream)))
 	   (refresh-storage (tree footer)
@@ -202,8 +208,7 @@
 		     (slot-value leaf 'right) leaf
 		     (slot-value tree 'leaf) leaf
 		     (slot-value tree 'root) leaf
-		     (state leaf) :loaded)
-	       (assert (leafp tree leaf)))
+		     (state leaf) :loaded))
 	     ;; must be careful to reuse the leaf, in case root is the leaf sentinel (empty tree)
 	     (unless (prb-leaf-location-p tree (root footer))
 	       (let ((root (make-instance (rb-node-class tree))))
@@ -211,7 +216,8 @@
 		 (setf (state root) :unloaded
 		       (slot-value tree 'root) root)))
 	     (setf (next-form-number tree) (next-form-number footer))
-	     (assert (loaded-p (leaf tree)))
+	     ;; need to clear new root of transaction, since nothing has actually changed
+	     (setf (new-root *rb-transaction*) nil)
 	     tree)
 	   (footer-location (tree)
 	     (let ((stream (storage-stream tree)))
@@ -285,6 +291,8 @@
   (let ((footer (make-storage-footer tree))
 	(stream (open-storage-stream tree)))
     (file-position stream :end)
+    (assert (not (equality (leaf footer) (loc 0 0))))
+    (assert (not (equality (root footer) (loc 0 0))))
     (write-stored-object stream footer)
     (write-stored-object stream footer)
     (finish-output stream)
