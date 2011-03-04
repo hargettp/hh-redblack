@@ -58,9 +58,6 @@
   ((root :initform nil :accessor root)
    (leaf :initform nil :accessor leaf)))
 
-(defclass memory-persistent-red-black-tree (persistent-red-black-tree)
-  ((objects :initform (make-array 0 :adjustable t :fill-pointer t) :accessor objects)))
-
 (defclass red-black-tree-transaction ()
   ((tree :initarg :tree :accessor tree) 
    (new-root :initform nil :accessor new-root)
@@ -329,11 +326,6 @@
 (defmethod initialize-instance :before ((tree persistent-red-black-tree)  &key)
   (setf (tree *rb-transaction*) tree))
 
-(defun make-memory-persistent-red-black-tree () ;; TODO consider having an argument for the tree class
-  (let ((tree nil))
-    (with-rb-transaction ((setf tree  (make-instance 'memory-persistent-red-black-tree)))
-      tree)))
-
 (defmethod rb-node-class ((tree persistent-red-black-tree))
   'persistent-red-black-node)
 
@@ -423,38 +415,6 @@
     ;; only save the root if there are changes
     (when sorted-changes (prb-save-root tree (root tree)))))
 
-;; ---------------------------------------------------------------------------------------------------------------------
-;; implementation : In-memory storage -- treats a vector as storage, with indexes as locations
-;; ---------------------------------------------------------------------------------------------------------------------
-
-(defmethod prb-open-storage ((tree memory-persistent-red-black-tree))
-  )
-
-(defmethod prb-stash-node ((tree memory-persistent-red-black-tree) left-location right-location color-value key-value data-location)
-  (vector-push-extend (list left-location right-location color-value key-value data-location) (objects tree)))
-
-(defmethod prb-fetch-node ((tree memory-persistent-red-black-tree) location)
-  (destructuring-bind (left right color key data) (aref (objects tree) location)
-    (values left right color key data)))
-
-(defmethod prb-fetch-data ((tree memory-persistent-red-black-tree) location)
-  (aref (objects tree) location))
-
-(defmethod prb-stash-data ((tree memory-persistent-red-black-tree) data)
-  (vector-push-extend data (objects tree)))
-
-(defmethod prb-close-storage ((tree memory-persistent-red-black-tree)))
-
-(defmethod prb-location ((tree memory-persistent-red-black-tree))
-  (length (objects tree)))
-
-(defmethod prb-leaf-location-p ((tree memory-persistent-red-black-tree) location)
-  (= 0 location))
-
-(defmethod prb-save-root ((tree memory-persistent-red-black-tree) root)
-  ;; must mark as unloaded so that it behaves properly in next transaction
-  (setf (state root) :unloaded)
-  (setf (slot-value tree 'root) root))
 
 ;; ---------------------------------------------------------------------------------------------------------------------
 ;; printing

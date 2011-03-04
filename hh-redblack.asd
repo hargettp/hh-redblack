@@ -33,6 +33,7 @@
    (:file "base" :depends-on ("package"))
    (:file "memory" :depends-on ("base"))
    (:file "persistent" :depends-on ("base"))
+   (:file "array" :depends-on ("persistent"))
    (:file "text" :depends-on ("persistent"))
    )
   :depends-on
