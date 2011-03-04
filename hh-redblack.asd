@@ -30,9 +30,9 @@
   "0.1"
   :components
   ((:file "package") 
-   (:file "base")
-   (:file "memory" :depends-on ("package" "base"))
-   (:file "persistent" :depends-on ("package" "base"))
+   (:file "base" :depends-on ("package"))
+   (:file "memory" :depends-on ("base"))
+   (:file "persistent" :depends-on ("base"))
    (:file "text" :depends-on ("persistent"))
    )
   :depends-on
