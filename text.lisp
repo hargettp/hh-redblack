@@ -56,6 +56,16 @@
   (with-slots (left right color key data) object
     (format stream "~s" `(node :left ,left :right ,right :color ,color :key ,key :data ,data))))
 
+(defclass storage-data ()
+  ((content :initform nil :initarg :content :accessor content)))
+
+(defmacro node-data (content)
+  `(make-instance 'storage-data :content ',content))
+
+(defmethod print-object ((data storage-data) stream)
+  (with-slots (content) data
+    (format stream "~s" `(data ,content))))
+
 (defclass storage-location ()
   ((form-number :initform 0 :initarg :form :accessor form-number)
    (offset :initform 0 :initarg :offset :accessor offset)))
@@ -263,17 +273,18 @@
     (with-slots (left right color key data) (contents form)
       (values left right color key data))))
 
-(defmethod prb-stash-data ((tree text-file-red-black-tree) data)
+(defmethod prb-stash-data ((tree text-file-red-black-tree) contents)
   (write-stored-object (storage-stream tree)
 		       (form (next-form-number tree)
-			     data))
+			     (node-data contents)))
   (incf (next-form-number tree)))
 
 (defmethod prb-fetch-data ((tree text-file-red-black-tree) location)
   (file-position (storage-stream tree) (offset location))
   (let ((form (read-stored-object (storage-stream tree))))
     (file-position (storage-stream tree) :end)
-    (contents form)))
+    (with-slots (contents) (contents form)
+      contents)))
 
 (defmethod prb-close-storage ((tree text-file-red-black-tree))
   (close-storage-stream tree))

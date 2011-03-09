@@ -209,6 +209,30 @@
     					   (setf keys (append keys (list key))))
     		    keys)))
 
+  (assert-equal  `("one" "two" "three" "four" "five")
+		 (with-temporary-tree (tree)
+		   (with-rb-transaction (tree)
+		     (let ((all-data ()))
+		       (rb-put tree 4 "four")
+		       (rb-put tree 1 "one")
+		       (rb-put tree 5 "five")
+		       (rb-put tree 3 "three")
+		       (rb-put tree 2 "two")
+		       (with-rb-keys-and-data (key data :first) tree
+					      (setf all-data (append all-data (list (hh-redblack::contents data)))))
+		       all-data))))
+
+  (assert-equal  `("one" "two" "three" "four" "five")
+		 (with-temporary-tree (tree)
+		   (with-rb-transaction (tree)
+		     (rb-put tree 4 "four")
+		     (rb-put tree 1 "one")
+		     (rb-put tree 5 "five")
+		     (rb-put tree 3 "three")
+		     (rb-put tree 2 "two")
+		     (loop for key in (rb-keys tree)
+			  collect (rb-get tree key)))))
+
   (let ((temp-file-name (asdf:system-relative-pathname (asdf:find-system "hh-redblack") 
 						       (format nil "text-~s.tree" (random (expt 2 32))))))
     (unwind-protect 
@@ -254,6 +278,7 @@
       (rb-remove tree 3)
       (assert-equal `(1 2 4 5 6 7 8 9 10) 
 		    (rb-keys tree)))
+
   (let ((tree (make-memory-persistent-red-black-tree)))
     (with-rb-transaction (tree)
       (rb-put tree 5 "five")
@@ -271,6 +296,7 @@
       (assert-equal `(1 2 4 5 6 7 8 9 10)
 		    (with-rb-transaction (tree)
 		      (rb-keys tree))))
+
   (with-temporary-tree (tree)
     (with-rb-transaction (tree)
       (rb-put tree 5 "five")
