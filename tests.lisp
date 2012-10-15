@@ -23,7 +23,7 @@
 
 (in-package :hh-redblack-tests)
 
-(remove-all-tests)
+(remove-tests :all)
 
 (define-test create-rb-rtree-tests
     (let ((tree (make-red-black-tree)))
@@ -315,4 +315,4 @@
 		  (with-rb-transaction (tree)
 		    (rb-keys tree)))))
 
-(run-tests)
+(run-tests :all)
