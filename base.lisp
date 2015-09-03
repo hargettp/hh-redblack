@@ -447,8 +447,8 @@
 
 (defmethod rb-keys ((tree red-black-tree))
   (let ((keys ()))
-    (with-rb-keys-and-data (key data :first) tree
-			   (setf keys (append keys (list key))))
+    (with-rb-keys-and-data (key data :last) tree
+			   (setf keys (push key keys)))
     keys))
 
 ;; ---------------------------------------------------------------------------------------------------------------------
