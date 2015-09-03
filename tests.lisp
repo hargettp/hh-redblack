@@ -50,8 +50,22 @@
       (assert-true (string= "one" (rb-get tree 1)))
       (assert-true (string= "two" (rb-get tree 2)))))
 
+(define-test remove-test
+  (let ((tree (make-red-black-tree)))
+      (rb-put tree 1 "one")
+      (assert-true (string= "one" (rb-get tree 1)))
+      (rb-remove tree 1)
+      (assert-false (rb-get tree 1))))
+
+;; A regression test for issue #3 on Github. Previously this would
+;; cause on infinite loop. As long as this code finishes were okay.
+(define-test regression-test-issue3
+  (let ((tree (make-red-black-tree)))
+      (loop for x in '(-1 -7 1 -1 -4) do (rb-put tree x "data"))
+      (loop for x in '(1 -1 -7) do (rb-remove tree x))))
+
 (define-test iteration-tests
-  (assert-equal `(1 2 3 4 5) 
+  (assert-equal `(1 2 3 4 5)
 		(let ((tree (make-red-black-tree))
 		       (keys ()))
 		   (rb-put tree 4 "four")
@@ -62,7 +76,7 @@
 		   (with-rb-keys-and-data (key data :first) tree
 					  (setf keys (append keys (list key))))
 		   keys))
-  (assert-equal `(5 4 3 2 1) 
+  (assert-equal `(5 4 3 2 1)
 		(let ((tree (make-red-black-tree))
 		       (keys ()))
 		   (rb-put tree 4 "four")
@@ -73,7 +87,7 @@
 		   (with-rb-keys-and-data (key data :last) tree
 					  (setf keys (append keys (list key))))
 		   keys))
-  (assert-equal  `("one" "two" "three" "four" "five") 
+  (assert-equal  `("one" "two" "three" "four" "five")
 		 (let ((tree (make-red-black-tree))
 		       (all-data ()))
 		   (rb-put tree 4 "four")
@@ -86,7 +100,7 @@
 		   all-data)))
 
 (define-test remove-tests
-  (assert-equal `(1 2 4 5) 
+  (assert-equal `(1 2 4 5)
 		(let ((tree (make-red-black-tree))
 		      (keys ()))
 		  (rb-put tree 4 "four")
@@ -98,37 +112,37 @@
 		  (with-rb-keys-and-data (key data :first) tree
 					 (setf keys (append keys (list key))))
 		  keys))
-  
+
   (let ((tree (make-red-black-tree)))
     (rb-put tree 4 "four")
     (rb-put tree 1 "one")
     (rb-put tree 5 "five")
     (rb-put tree 3 "three")
     (rb-put tree 2 "two")
-    (assert-equal `(1 2 3 4 5) 
+    (assert-equal `(1 2 3 4 5)
 		  (let ((keys ()))
 		    (with-rb-keys-and-data (key data :first) tree
 					   (setf keys (append keys (list key))))
 		    keys))
     (rb-remove tree 3)
     (rb-remove tree 4)
-    (assert-equal `(1 2 5) 
+    (assert-equal `(1 2 5)
 		  (let ((keys ()))
     		    (with-rb-keys-and-data (key data :first) tree
     					   (setf keys (append keys (list key))))
     		    keys))
     (rb-put tree 3 "three")
     (rb-put tree 4 "four")
-    (assert-equal `(1 2 3 4 5) 
+    (assert-equal `(1 2 3 4 5)
 		  (let ((keys ()))
     		    (with-rb-keys-and-data (key data :first) tree
     					   (setf keys (append keys (list key))))
     		    keys))))
 
 (defmacro with-temporary-tree ((var) &rest body)
-  `(let ((temp-file-name (asdf:system-relative-pathname (asdf:find-system "hh-redblack") 
+  `(let ((temp-file-name (asdf:system-relative-pathname (asdf:find-system "hh-redblack")
 							(format nil "text-~s.tree" (random (expt 2 32))))))
-     (unwind-protect 
+     (unwind-protect
 	  (let ((,var (make-text-file-red-black-tree temp-file-name)))
 	    ,@body)
 	  (delete-file temp-file-name))))
@@ -174,7 +188,7 @@
       (rb-put tree 5 "five")
       (rb-put tree 3 "three")
       (rb-put tree 2 "two")
-      (assert-equal `(1 2 3 4 5) 
+      (assert-equal `(1 2 3 4 5)
 		    (let ((keys ()))
 		      (with-rb-keys-and-data (key data :first) tree
 					     (setf keys (append keys (list key))))
@@ -187,7 +201,7 @@
     (rb-put tree 5 "five")
     (rb-put tree 3 "three")
     (rb-put tree 2 "two")
-    (assert-equal `(1 2 3 4 5) 
+    (assert-equal `(1 2 3 4 5)
 		  (let ((keys ()))
 		    (with-rb-keys-and-data (key data :first) tree
 					   (setf keys (append keys (list key))))
@@ -195,7 +209,7 @@
 
   (with-rb-transaction (tree)
     (rb-remove tree 3)
-    (assert-equal `(1 2 4 5) 
+    (assert-equal `(1 2 4 5)
 		  (let ((keys ()))
     		    (with-rb-keys-and-data (key data :first) tree
     					   (setf keys (append keys (list key))))
@@ -203,7 +217,7 @@
 
   (with-rb-transaction (tree)
     (rb-remove tree 4)
-    (assert-equal `(1 2 5) 
+    (assert-equal `(1 2 5)
 		  (let ((keys ()))
     		    (with-rb-keys-and-data (key data :first) tree
     					   (setf keys (append keys (list key))))
@@ -233,9 +247,9 @@
 		     (loop for key in (rb-keys tree)
 			  collect (rb-get tree key)))))
 
-  (let ((temp-file-name (asdf:system-relative-pathname (asdf:find-system "hh-redblack") 
+  (let ((temp-file-name (asdf:system-relative-pathname (asdf:find-system "hh-redblack")
 						       (format nil "text-~s.tree" (random (expt 2 32))))))
-    (unwind-protect 
+    (unwind-protect
 	 (progn
 	   (let ((tree (make-text-file-red-black-tree temp-file-name)))
 	     (with-rb-transaction (tree)
@@ -257,7 +271,7 @@
   (with-rb-transaction (tree)
     (rb-put tree 3 "three")
     (rb-put tree 4 "four")
-    (assert-equal `(1 2 3 4 5) 
+    (assert-equal `(1 2 3 4 5)
 		  (let ((keys ()))
     		    (with-rb-keys-and-data (key data :first) tree
     					   (setf keys (append keys (list key))))
@@ -276,7 +290,7 @@
       (rb-put tree 10 "ten")
       (rb-put tree 4 "four")
       (rb-remove tree 3)
-      (assert-equal `(1 2 4 5 6 7 8 9 10) 
+      (assert-equal `(1 2 4 5 6 7 8 9 10)
 		    (rb-keys tree)))
 
   (let ((tree (make-memory-persistent-red-black-tree)))

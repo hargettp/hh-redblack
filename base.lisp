@@ -34,7 +34,7 @@
 
 (defclass red-black-node () ())
 
-(macrolet 
+(macrolet
     ((define-slot (name)
        `(progn
 	  (defgeneric ,name (node))
@@ -104,8 +104,8 @@
   (:documentation "Equivalent to sethash with a hashtable: set the data for a given key in the provided tree"))
 
 (defgeneric rb-get (tree key &optional default)
-  (:documentation "Returns 2 values, just like gethash: if the key is present, returns the 
-   associated data and t (indicating data was present), otherwise returns 
+  (:documentation "Returns 2 values, just like gethash: if the key is present, returns the
+   associated data and t (indicating data was present), otherwise returns
    the default and nil"))
 
 (defgeneric rb-remove (tree key)
@@ -189,7 +189,7 @@
 		       (setf (color (parent (parent z))) :red)
 		       (rb-right-rotate tree (parent (parent z))))))
 	      ;; for when on right side
-	      (let ((y (left (parent (parent z)))))		
+	      (let ((y (left (parent (parent z)))))
 		(cond ((eq (color y) :red)
 		       (setf (color (parent z)) :black)
 		       (setf (color y) :black)
@@ -215,7 +215,7 @@
 	   (setf (root tree) y))
 	  ((eq x (left (parent x)))
 	   (setf (left (parent x)) y))
-	  (t 
+	  (t
 	   (setf (right (parent x)) y)))
     (setf (left y) x)
     (setf (parent x) y)
@@ -232,14 +232,14 @@
 	   (setf (root tree) y))
 	  ((eq x (left (parent x)))
 	   (setf (left (parent x)) y))
-	  (t 
+	  (t
 	   (setf (right (parent x)) y)))
     (setf (right y) x)
     (setf (parent x) y)
     node))
 
 (defmethod rb-delete ((tree red-black-tree) (node red-black-node))
-  (let* ((z node) 
+  (let* ((z node)
 	 (y z)
 	 (y-original-color (color y))
 	 x)
@@ -271,22 +271,15 @@
 	 (setf (root tree) v))
 	((eq u (left (parent u)))
 	 (setf (left (parent u)) v))
-	(t 
+	(t
 	 (setf (right (parent u)) v)))
-  ;; TODO something broken in the persistent case here, as 
-  ;; we haven't detected that v is actally the leaf node,
-  ;; so we try to modify it anyway
-  ;; Adding test for safety--may be appropriate in the general case,
-  ;; since entirely possible that v has arrived here as a leaf (no test in rb-delete, for example)
-  (unless (leafp tree v)
-    (setf (parent v) (parent u)))
-  ;; (setf (parent v) (parent u))
+  (setf (parent v) (parent u))
   v)
 
 (defmethod rb-delete-fixup ((tree red-black-tree) (node red-black-node))
   (let ((x node))
     (loop while (and (not (eq x (root tree)))
-		     (eq (color x) :black)) 
+		     (eq (color x) :black))
 	 do (if (eq x (left (parent x)))
 	     ;; if left child
 	     (let ((w (right (parent x))))
@@ -304,7 +297,7 @@
 		      (setf (color w) :red)
 		      (rb-right-rotate tree w)
 		      (setf w (right (parent x))))
-		     (t 
+		     (t
 		      (setf (color w) (color (parent x)))
 		      (setf (color (parent x)) :black)
 		      (setf (color (right w)) :black)
@@ -326,7 +319,7 @@
 		      (setf (color w) :red)
 		      (rb-left-rotate tree w)
 		      (setf w (left (parent x))))
-		     (t 
+		     (t
 		      (setf (color w) (color (parent x)))
 		      (setf (color (parent x)) :black)
 		      (setf (color (left w)) :black)
@@ -411,7 +404,7 @@
 
 (defmethod rb-next ((tree red-black-tree) (node red-black-node))
   (cond ((leafp tree node)
-	 nil) 
+	 nil)
 	((not (leafp tree (right node)))
 	 (rb-tree-minimum tree (right node)))
 	(t (loop for start = node then (parent start)
@@ -421,7 +414,7 @@
 
 (defmethod rb-previous ((tree red-black-tree) (node red-black-node))
   (cond ((leafp tree node)
-	 nil) 
+	 nil)
 	((not (leafp tree (left node)))
 	 (rb-tree-maximum tree (left node)))
 	(t (loop for start = node then (parent start)
@@ -462,8 +455,7 @@
   (let ((*print-circle* t))
     (with-slots (parent left right color key data) obj
       (print-unreadable-object (obj stream :type t :identity t)
-	(with-slots (parent left right color key data) obj      
+	(with-slots (parent left right color key data) obj
 	  (if (eq obj parent)
 	      (format stream "T.nil")
 	      (format stream "Color=~s Key=~s Data=~s ~_Left=~<~s~> ~_Right=~<~s~>" color key data left right)))))))
-
