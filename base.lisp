@@ -422,18 +422,21 @@
 	      finally (return (parent start))))))
 
 (defmacro with-rb-keys-and-data ((key-var data-var &optional (starting-point :first)) tree &rest body)
-  (multiple-value-bind (starting-function incrementing-function)
-      (cond ((eq starting-point :first)
-	     (values 'rb-first 'rb-next))
-	    ((eq starting-point :last)
-	     (values 'rb-last 'rb-previous))
-	    (t (error "Starting point should be either :first or :last")))
-    `(loop with starting-node = (,starting-function ,tree)
-	for node = starting-node then (,incrementing-function ,tree node)
-	while node
-	do (with-slots ((,key-var key) (,data-var data)) node
-	     (declare (ignorable ,key-var ,data-var))
-	     ,@body))))
+  (let ((gnode (gensym)))
+    (multiple-value-bind (starting-function incrementing-function)
+        (case starting-point
+          (:first (values 'rb-first 'rb-next))
+          (:last  (values 'rb-last 'rb-previous))
+          (t (error "Starting point should be either :first or :last")))
+      `(loop for ,gnode = (,starting-function ,tree) then (,incrementing-function ,tree ,gnode)
+          while ,gnode
+          ;; Using with-slots here doesn't seem right. Since there is
+          ;; an around method when we get the key/data from a node in
+          ;; a persistent tree, the slot won't match up with the
+          ;; actual value.
+          do (with-slots ((,key-var key) (,data-var data)) ,gnode
+               (declare (ignorable ,key-var ,data-var))
+               ,@body)))))
 
 (defmethod rb-keys ((tree red-black-tree))
   (let ((keys ()))
