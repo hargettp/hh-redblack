@@ -95,11 +95,6 @@
 (defgeneric rb= (left-key right-key)
   (:documentation "Return t if the left key and right key are equivalent"))
 
-(defgeneric rb-key-compare (left-key right-key)
-  (:documentation "Compare 2 keys used in a red-black tree, return :less, :equal, or :greater, depending
-    on the result of the comparison.  Definitions exist for common types such
-    as numbers, strings, and symbols."))
-
 (defgeneric rb-put (tree key data)
   (:documentation "Equivalent to sethash with a hashtable: set the data for a given key in the provided tree"))
 
@@ -353,29 +348,24 @@
   ;; that at the end.
   (setf (key (leaf tree)) key)
   (loop with node = (root tree)
-     for comparison = (rb-key-compare key (key node))
-     until (eq :equal comparison)
-     do (if (eq :less comparison)
+     until (rb= key (key node))
+     do (if (rb< key (key node))
 	    (setf node (left node))
 	    (setf node (right node)))
      finally (unless (leafp tree node)
 	       (return node))))
 
-(defmethod rb< (left right)
-  (when (eq :less (rb-key-compare left right)) t))
+(defmethod rb< ((left number) (right number))
+  (< left right))
 
-(defmethod rb= (left right)
-  (when (eq :equal (rb-key-compare left right)) t))
+(defmethod rb= ((left number) (right number))
+  (= left right))
 
-(defmethod rb-key-compare ((left number) (right number))
-    (cond ((< left right) :less)
-	  ((> left right) :greater)
-	  (t :equal)))
+(defmethod rb< ((left string) (right string))
+  (string< left right))
 
-(defmethod rb-key-compare ((left string) (right string))
-    (cond ((string< left right) :less)
-	  ((string> left right) :greater)
-	  (t :equal)))
+(defmethod rb= ((left string) (right string))
+  (string= left right))
 
 (defmethod rb-put ((tree red-black-tree) (key t) (data t))
   (when data ;; can't store nil
