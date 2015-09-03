@@ -155,8 +155,13 @@
 	    (setf y x)
 	    (cond ((rb< (key z) (key x))
 		   (setf x (left x)))
-		  (t
-		   (setf x (right x))))))
+		  ((not (rb= (key z) (key x)))
+		   (setf x (right x)))
+                  (t
+                   ;; If there is already a node with the same key,
+                   ;; the data is replaced.
+                   (setf (data x) (data z))
+                   (return-from rb-insert)))))
     (setf (parent z) y)
     (cond ((leafp tree y)
 	   (setf (root tree) z))

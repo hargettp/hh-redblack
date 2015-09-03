@@ -61,8 +61,18 @@
 ;; cause on infinite loop. As long as this code finishes were okay.
 (define-test regression-test-issue3
   (let ((tree (make-red-black-tree)))
-      (loop for x in '(-1 -7 1 -1 -4) do (rb-put tree x "data"))
+      (loop for x in '(-1 -7 1 0 -4) do (rb-put tree x "data"))
       (loop for x in '(1 -1 -7) do (rb-remove tree x))))
+
+;; Previously the code would allow for multiple nodes with the same
+;; key.
+(define-test regression-test-duplication
+  (let ((tree (make-red-black-tree)))
+    (rb-put tree 1 "data")
+    (rb-put tree 1 "new data")
+    (assert-true (string= (rb-get tree 1) "new data"))
+    (rb-remove tree 1)
+    (assert-false (rb-get tree 1))))
 
 (define-test iteration-tests
   (assert-equal `(1 2 3 4 5)
