@@ -347,8 +347,8 @@
        finally (return x))))
 
 (defmethod rb-find ((tree red-black-tree) key)
+  (setf (key (leaf tree)) key)
   (loop with node = (root tree)
-     until (leafp tree node)
      for comparison = (rb-key-compare key (key node))
      until (eq :equal comparison)
      do (if (eq :less comparison)
