@@ -44,6 +44,8 @@
 
 (define-test put-get-tests
   (let ((tree (make-red-black-tree)))
+      ;; Check that something we didn't put in the tree isn't there.
+      (assert-false (rb-get tree 1))
       (rb-put tree 1 "one")
       (assert-true (string= "one" (rb-get tree 1)))
       (rb-put tree 2 "two")
