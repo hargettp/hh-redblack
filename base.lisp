@@ -347,6 +347,10 @@
        finally (return x))))
 
 (defmethod rb-find ((tree red-black-tree) key)
+  ;; By setting the key of the leaf sentinel to the key we are looking
+  ;; for, we are guaranteed to find a match. This allows us to skip
+  ;; testing for a leaf node during the traversal. We only have to do
+  ;; that at the end.
   (setf (key (leaf tree)) key)
   (loop with node = (root tree)
      for comparison = (rb-key-compare key (key node))
