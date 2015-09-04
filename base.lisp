@@ -368,9 +368,8 @@
   (string= left right))
 
 (defmethod rb-put ((tree red-black-tree) (key t) (data t))
-  (when data ;; can't store nil
-    (let ((node (rb-make-node tree :key key :data data)))
-      (rb-insert tree node))))
+  (let ((node (rb-make-node tree :key key :data data)))
+    (rb-insert tree node)))
 
 (defmethod rb-get ((tree red-black-tree) key &optional (default nil))
   (let ((node (rb-find tree key)))

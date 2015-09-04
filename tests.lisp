@@ -52,6 +52,17 @@
       (assert-true (string= "one" (rb-get tree 1)))
       (assert-true (string= "two" (rb-get tree 2)))))
 
+;; Test that we can store nil as a value.
+(define-test nil-test
+  (let ((tree (make-red-black-tree)))
+    (multiple-value-bind (val found) (rb-get tree 1)
+      (assert-false val)
+      (assert-false found))
+    (rb-put tree 1 nil)
+    (multiple-value-bind (val found) (rb-get tree 1)
+      (assert-false val)
+      (assert-true found))))
+
 (define-test remove-test
   (let ((tree (make-red-black-tree)))
       (rb-put tree 1 "one")
