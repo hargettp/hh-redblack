@@ -41,8 +41,8 @@
 			   object-loaded))
 
 (defclass persistent-red-black-object ()
-  ((state :type node-state :initform :new :initarg :state :accessor state) 
-   (location :initform 0 :initarg :location :accessor location))) 
+  ((state :type node-state :initform :new :initarg :state :accessor state)
+   (location :initform 0 :initarg :location :accessor location)))
 
 (defclass persistent-red-black-node (red-black-node persistent-red-black-object)
   ((left :initform nil :accessor left)
@@ -59,7 +59,7 @@
    (leaf :initform nil :accessor leaf)))
 
 (defclass red-black-tree-transaction ()
-  ((tree :initarg :tree :accessor tree) 
+  ((tree :initarg :tree :accessor tree)
    (new-root :initform nil :accessor new-root)
    (parents :initform (make-hash-table ) :accessor parents :documentation "For mapping objects to their parent objects")
    (changes :initform (make-array 0 :adjustable t :fill-pointer t) :accessor changes)))
@@ -68,7 +68,7 @@
 ;; variables
 ;; ---------------------------------------------------------------------------------------------------------------------
 
-(defvar *rb-transaction* nil 
+(defvar *rb-transaction* nil
   "The currently active transaction on a red-black tree")
 
 ;; ---------------------------------------------------------------------------------------------------------------------
@@ -89,7 +89,7 @@
 (defgeneric changedp (transaction object))
 
 (defgeneric prb-open-storage (tree)
-  (:documentation "Prepare tree for use; after this call load & save operations should succeed, the root should be loaded, 
+  (:documentation "Prepare tree for use; after this call load & save operations should succeed, the root should be loaded,
     and the leaf sentinel identified"))
 
 (defgeneric prb-close-storage (storage)
@@ -121,26 +121,14 @@
 (defgeneric refresh-node (tree node)
   (:documentation "Refresh a node's state from storage, if necessary"))
 
-(defgeneric prb-save-node (tree node)
-  (:documentation "Save the indicated node in storage, using prb-stash-node. Tree implementations
-   are free to implement either prb-save-node (high-level) or prb-stash-node (low-level), depending
-   on their needs.  Typical implementations may want to implement prb-stash-node to write their own
-   storage, but implementing prb-save-node would permit extending what node state is saved."))
-
 (defgeneric prb-stash-node (tree left-location right-location color-value key-value data-location)
   (:documentation "Save node state into storage"))
 
 (defgeneric prb-stash-data (tree contents)
   (:documentation "Save the indicated contents of a data object in storage"))
 
-(defgeneric prb-save-data (tree data)
-  (:documentation "Save the indicated data in storage"))
-
 (defgeneric prb-save-object (tree object)
-  (:method ((tree persistent-red-black-tree) (node persistent-red-black-node))
-    (prb-save-node tree node))
-  (:method ((tree persistent-red-black-tree) (object t))
-    (prb-save-data tree object)))
+  (:documentation "Write the object to memory."))
 
 (defgeneric prb-save-root (tree root)
   (:documentation "Save the indicated root to storage; after this call, any subsequent
@@ -183,9 +171,9 @@
 
 (defgeneric ancestor-p (node possible-ancestor)
   (:method ((node persistent-red-black-node) (possible-ancestor persistent-red-black-node))
-    (let ((tree (tree *rb-transaction*))) 
+    (let ((tree (tree *rb-transaction*)))
       (cond ((leafp tree node)
-	     nil) 
+	     nil)
 	    ((leafp tree possible-ancestor)
 	     t)
 	    ((eq node possible-ancestor)
@@ -309,7 +297,7 @@
   (find object (changes *rb-transaction*) :test #'eql))
 
 (defmacro with-rb-transaction ((tree) &rest body)
-  `(let* ((existing-transaction *rb-transaction*) 
+  `(let* ((existing-transaction *rb-transaction*)
 	  (*rb-transaction* (or existing-transaction (make-instance 'red-black-tree-transaction))))
      (setf (tree *rb-transaction*) ,tree)
      (prb-open-storage (tree *rb-transaction*))
@@ -317,7 +305,7 @@
 	  (handler-bind ((error #'(lambda (e)
 				    (declare (ignorable e))
 				    (prb-abort *rb-transaction*))))
-	    (let ((v (multiple-value-list (progn 
+	    (let ((v (multiple-value-list (progn
 					    ,@body))))
 	      (unless existing-transaction (prb-commit *rb-transaction*))
 	      (values-list v)))
@@ -342,7 +330,7 @@
 		   (setf (state child) :unloaded)
 		   (add-child-object *rb-transaction* node child)
 		   child))))
-      (multiple-value-bind (left-location right-location color-value key-value data-location) 
+      (multiple-value-bind (left-location right-location color-value key-value data-location)
 	  (prb-fetch-node tree (location node))
 	(with-slots (left right color key data) node
 	  (setf left (open-node left-location)
@@ -355,7 +343,7 @@
       (setf (state node) :loaded)))
   node)
 
-(defmethod prb-save-node ((tree persistent-red-black-tree) (node persistent-red-black-node))
+(defmethod prb-save-object ((tree persistent-red-black-tree) (node persistent-red-black-node))
   ;; since it's possible that the node has not been loaded (e.g., if it was an ancestor of
   ;; a changed node), make sure it is loaded first
   ;; NOTE: this may limit some implementations, as this code assumes direct slot access is
@@ -368,7 +356,7 @@
   (unless (loaded-p data)
     (setf (contents data) (prb-fetch-data tree (location data)))))
 
-(defmethod prb-save-data ((tree persistent-red-black-tree) (data persistent-red-black-data))
+(defmethod prb-save-object ((tree persistent-red-black-tree) (data persistent-red-black-data))
   (prb-stash-data tree (contents data)))
 
 (defmethod prb-abort ((*rb-transaction* red-black-tree-transaction))
@@ -390,7 +378,7 @@
   (let ((sorted-changes ())
 	(unsorted-changes (loop for change across changes collect change))
 	(next-unsorted-changes ()))
-    (loop while unsorted-changes   
+    (loop while unsorted-changes
        do (loop for change in unsorted-changes
 	     if (loop for other in unsorted-changes
 		   if (compare-save-order other change) return nil
