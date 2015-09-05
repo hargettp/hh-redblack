@@ -266,9 +266,6 @@
     (add-new-object *rb-transaction* data)
     data))
 
-(defmethod leafp ((tree persistent-red-black-tree) (node persistent-red-black-node))
-  (eql node (leaf tree)))
-
 (defmethod add-new-object ((*rb-transaction* red-black-tree-transaction) object)
   (unless (changedp *rb-transaction* object)
     (vector-push-extend object (changes *rb-transaction*)))
