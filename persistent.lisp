@@ -56,7 +56,8 @@
 
 (defclass persistent-red-black-tree (red-black-tree)
   ((root :initform nil :accessor root)
-   (leaf :initform nil :accessor leaf)))
+   (leaf :initform nil :accessor leaf)
+   (deduplicate :initform t :initarg :deduplicate :accessor deduplicate)))
 
 (defclass red-black-tree-transaction ()
   ((tree :initarg :tree :accessor tree)

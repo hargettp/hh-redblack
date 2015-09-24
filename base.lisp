@@ -44,7 +44,8 @@
   (define-slot right)
   (define-slot color)
   (define-slot key)
-  (define-slot data))
+  (define-slot data)
+  (define-slot deduplicate))
 
 ;; Trees
 
@@ -150,11 +151,14 @@
 	    (setf y x)
 	    (cond ((rb< (key z) (key x))
 		   (setf x (left x)))
-		  ((not (rb= (key z) (key x)))
+                  ;; If we are not deduplicating the keys, we move to
+                  ;; the right branch no matter what here.
+		  ((or (not (deduplicate tree))
+                       (not (rb= (key z) (key x))))
 		   (setf x (right x)))
                   (t
-                   ;; If there is already a node with the same key,
-                   ;; the data is replaced.
+                   ;; If we are deduplicating the keys and the keys
+                   ;; are equal, we just modify the data.
                    (setf (data x) (data z))
                    (return-from rb-insert)))))
     (setf (parent z) y)
@@ -439,8 +443,7 @@
 
 (defmethod rb-keys ((tree red-black-tree))
   (let ((keys ()))
-    (with-rb-keys-and-data (key data :last) tree
-			   (setf keys (push key keys)))
+    (with-rb-keys-and-data (key data :last) tree (push key keys) (print keys))
     keys))
 
 ;; ---------------------------------------------------------------------------------------------------------------------
