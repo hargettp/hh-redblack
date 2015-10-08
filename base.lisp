@@ -443,7 +443,7 @@
 
 (defmethod rb-keys ((tree red-black-tree))
   (let ((keys ()))
-    (with-rb-keys-and-data (key data :last) tree (push key keys) (print keys))
+    (with-rb-keys-and-data (key data :last) tree (push key keys))
     keys))
 
 ;; ---------------------------------------------------------------------------------------------------------------------
