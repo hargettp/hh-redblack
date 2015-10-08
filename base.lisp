@@ -34,7 +34,7 @@
 
 (defclass red-black-node () ())
 
-(macrolet 
+(macrolet
     ((define-slot (name)
        `(progn
 	  (defgeneric ,name (node))
@@ -44,7 +44,8 @@
   (define-slot right)
   (define-slot color)
   (define-slot key)
-  (define-slot data))
+  (define-slot data)
+  (define-slot deduplicate))
 
 ;; Trees
 
@@ -95,17 +96,12 @@
 (defgeneric rb= (left-key right-key)
   (:documentation "Return t if the left key and right key are equivalent"))
 
-(defgeneric rb-key-compare (left-key right-key)
-  (:documentation "Compare 2 keys used in a red-black tree, return :less, :equal, or :greater, depending
-    on the result of the comparison.  Definitions exist for common types such
-    as numbers, strings, and symbols."))
-
 (defgeneric rb-put (tree key data)
   (:documentation "Equivalent to sethash with a hashtable: set the data for a given key in the provided tree"))
 
 (defgeneric rb-get (tree key &optional default)
-  (:documentation "Returns 2 values, just like gethash: if the key is present, returns the 
-   associated data and t (indicating data was present), otherwise returns 
+  (:documentation "Returns 2 values, just like gethash: if the key is present, returns the
+   associated data and t (indicating data was present), otherwise returns
    the default and nil"))
 
 (defgeneric rb-remove (tree key)
@@ -155,8 +151,16 @@
 	    (setf y x)
 	    (cond ((rb< (key z) (key x))
 		   (setf x (left x)))
-		  (t
-		   (setf x (right x))))))
+                  ;; If we are not deduplicating the keys, we move to
+                  ;; the right branch no matter what here.
+		  ((or (not (deduplicate tree))
+                       (not (rb= (key z) (key x))))
+		   (setf x (right x)))
+                  (t
+                   ;; If we are deduplicating the keys and the keys
+                   ;; are equal, we just modify the data.
+                   (setf (data x) (data z))
+                   (return-from rb-insert)))))
     (setf (parent z) y)
     (cond ((leafp tree y)
 	   (setf (root tree) z))
@@ -189,7 +193,7 @@
 		       (setf (color (parent (parent z))) :red)
 		       (rb-right-rotate tree (parent (parent z))))))
 	      ;; for when on right side
-	      (let ((y (left (parent (parent z)))))		
+	      (let ((y (left (parent (parent z)))))
 		(cond ((eq (color y) :red)
 		       (setf (color (parent z)) :black)
 		       (setf (color y) :black)
@@ -215,7 +219,7 @@
 	   (setf (root tree) y))
 	  ((eq x (left (parent x)))
 	   (setf (left (parent x)) y))
-	  (t 
+	  (t
 	   (setf (right (parent x)) y)))
     (setf (left y) x)
     (setf (parent x) y)
@@ -232,14 +236,14 @@
 	   (setf (root tree) y))
 	  ((eq x (left (parent x)))
 	   (setf (left (parent x)) y))
-	  (t 
+	  (t
 	   (setf (right (parent x)) y)))
     (setf (right y) x)
     (setf (parent x) y)
     node))
 
 (defmethod rb-delete ((tree red-black-tree) (node red-black-node))
-  (let* ((z node) 
+  (let* ((z node)
 	 (y z)
 	 (y-original-color (color y))
 	 x)
@@ -271,22 +275,15 @@
 	 (setf (root tree) v))
 	((eq u (left (parent u)))
 	 (setf (left (parent u)) v))
-	(t 
+	(t
 	 (setf (right (parent u)) v)))
-  ;; TODO something broken in the persistent case here, as 
-  ;; we haven't detected that v is actally the leaf node,
-  ;; so we try to modify it anyway
-  ;; Adding test for safety--may be appropriate in the general case,
-  ;; since entirely possible that v has arrived here as a leaf (no test in rb-delete, for example)
-  (unless (leafp tree v)
-    (setf (parent v) (parent u)))
-  ;; (setf (parent v) (parent u))
+  (setf (parent v) (parent u))
   v)
 
 (defmethod rb-delete-fixup ((tree red-black-tree) (node red-black-node))
   (let ((x node))
     (loop while (and (not (eq x (root tree)))
-		     (eq (color x) :black)) 
+		     (eq (color x) :black))
 	 do (if (eq x (left (parent x)))
 	     ;; if left child
 	     (let ((w (right (parent x))))
@@ -304,7 +301,7 @@
 		      (setf (color w) :red)
 		      (rb-right-rotate tree w)
 		      (setf w (right (parent x))))
-		     (t 
+		     (t
 		      (setf (color w) (color (parent x)))
 		      (setf (color (parent x)) :black)
 		      (setf (color (right w)) :black)
@@ -326,7 +323,7 @@
 		      (setf (color w) :red)
 		      (rb-left-rotate tree w)
 		      (setf w (left (parent x))))
-		     (t 
+		     (t
 		      (setf (color w) (color (parent x)))
 		      (setf (color (parent x)) :black)
 		      (setf (color (left w)) :black)
@@ -349,36 +346,34 @@
        finally (return x))))
 
 (defmethod rb-find ((tree red-black-tree) key)
+  ;; By setting the key of the leaf sentinel to the key we are looking
+  ;; for, we are guaranteed to find a match. This allows us to skip
+  ;; testing for a leaf node during the traversal. We only have to do
+  ;; that at the end.
+  (setf (key (leaf tree)) key)
   (loop with node = (root tree)
-     until (leafp tree node)
-     for comparison = (rb-key-compare key (key node))
-     until (eq :equal comparison)
-     do (if (eq :less comparison)
+     until (rb= key (key node))
+     do (if (rb< key (key node))
 	    (setf node (left node))
 	    (setf node (right node)))
      finally (unless (leafp tree node)
 	       (return node))))
 
-(defmethod rb< (left right)
-  (when (eq :less (rb-key-compare left right)) t))
+(defmethod rb< ((left number) (right number))
+  (< left right))
 
-(defmethod rb= (left right)
-  (when (eq :equal (rb-key-compare left right)) t))
+(defmethod rb= ((left number) (right number))
+  (= left right))
 
-(defmethod rb-key-compare ((left number) (right number))
-    (cond ((< left right) :less)
-	  ((> left right) :greater)
-	  (t :equal)))
+(defmethod rb< ((left string) (right string))
+  (string< left right))
 
-(defmethod rb-key-compare ((left string) (right string))
-    (cond ((string< left right) :less)
-	  ((string> left right) :greater)
-	  (t :equal)))
+(defmethod rb= ((left string) (right string))
+  (string= left right))
 
 (defmethod rb-put ((tree red-black-tree) (key t) (data t))
-  (when data ;; can't store nil
-    (let ((node (rb-make-node tree :key key :data data)))
-      (rb-insert tree node))))
+  (let ((node (rb-make-node tree :key key :data data)))
+    (rb-insert tree node)))
 
 (defmethod rb-get ((tree red-black-tree) key &optional (default nil))
   (let ((node (rb-find tree key)))
@@ -411,7 +406,7 @@
 
 (defmethod rb-next ((tree red-black-tree) (node red-black-node))
   (cond ((leafp tree node)
-	 nil) 
+	 nil)
 	((not (leafp tree (right node)))
 	 (rb-tree-minimum tree (right node)))
 	(t (loop for start = node then (parent start)
@@ -421,7 +416,7 @@
 
 (defmethod rb-previous ((tree red-black-tree) (node red-black-node))
   (cond ((leafp tree node)
-	 nil) 
+	 nil)
 	((not (leafp tree (left node)))
 	 (rb-tree-maximum tree (left node)))
 	(t (loop for start = node then (parent start)
@@ -430,23 +425,25 @@
 	      finally (return (parent start))))))
 
 (defmacro with-rb-keys-and-data ((key-var data-var &optional (starting-point :first)) tree &rest body)
-  (multiple-value-bind (starting-function incrementing-function)
-      (cond ((eq starting-point :first)
-	     (values 'rb-first 'rb-next))
-	    ((eq starting-point :last)
-	     (values 'rb-last 'rb-previous))
-	    (t (error "Starting point should be either :first or :last")))
-    `(loop with starting-node = (,starting-function ,tree)
-	for node = starting-node then (,incrementing-function ,tree node)
-	while node
-	do (with-slots ((,key-var key) (,data-var data)) node
-	     (declare (ignorable ,key-var ,data-var))
-	     ,@body))))
+  (let ((gnode (gensym)))
+    (multiple-value-bind (starting-function incrementing-function)
+        (case starting-point
+          (:first (values 'rb-first 'rb-next))
+          (:last  (values 'rb-last 'rb-previous))
+          (t (error "Starting point should be either :first or :last")))
+      `(loop for ,gnode = (,starting-function ,tree) then (,incrementing-function ,tree ,gnode)
+          while ,gnode
+          ;; Using with-slots here doesn't seem right. Since there is
+          ;; an around method when we get the key/data from a node in
+          ;; a persistent tree, the slot won't match up with the
+          ;; actual value.
+          do (with-slots ((,key-var key) (,data-var data)) ,gnode
+               (declare (ignorable ,key-var ,data-var))
+               ,@body)))))
 
 (defmethod rb-keys ((tree red-black-tree))
   (let ((keys ()))
-    (with-rb-keys-and-data (key data :first) tree
-			   (setf keys (append keys (list key))))
+    (with-rb-keys-and-data (key data :last) tree (push key keys))
     keys))
 
 ;; ---------------------------------------------------------------------------------------------------------------------
@@ -462,8 +459,7 @@
   (let ((*print-circle* t))
     (with-slots (parent left right color key data) obj
       (print-unreadable-object (obj stream :type t :identity t)
-	(with-slots (parent left right color key data) obj      
+	(with-slots (parent left right color key data) obj
 	  (if (eq obj parent)
 	      (format stream "T.nil")
 	      (format stream "Color=~s Key=~s Data=~s ~_Left=~<~s~> ~_Right=~<~s~>" color key data left right)))))))
-

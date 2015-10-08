@@ -37,9 +37,10 @@
 ;; implementation : In-memory storage -- treats a vector as storage, with indexes as locations
 ;; ---------------------------------------------------------------------------------------------------------------------
 
-(defun make-memory-persistent-red-black-tree () ;; TODO consider having an argument for the tree class
+(defun make-memory-persistent-red-black-tree (&optional (deduplicate t)) ;; TODO consider having an argument for the tree class
   (let ((tree nil))
-    (with-rb-transaction ((setf tree  (make-instance 'memory-persistent-red-black-tree)))
+    (with-rb-transaction ((setf tree  (make-instance 'memory-persistent-red-black-tree
+                                                     :deduplicate deduplicate)))
       tree)))
 
 (defmethod prb-open-storage ((tree memory-persistent-red-black-tree))

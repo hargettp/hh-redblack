@@ -39,15 +39,15 @@
 
 (defclass memory-red-black-tree (red-black-tree)
   ((root :accessor root)
-   (leaf :accessor leaf)))
+   (leaf :accessor leaf)
+   (deduplicate :initform t :initarg :deduplicate :accessor deduplicate)))
 
 ;; ---------------------------------------------------------------------------------------------------------------------
 ;; implementation
 ;; ---------------------------------------------------------------------------------------------------------------------
 
-(defun make-red-black-tree ()
-  (make-instance 'memory-red-black-tree))
+(defun make-red-black-tree (&optional (deduplicate t))
+  (make-instance 'memory-red-black-tree :deduplicate deduplicate))
 
 (defmethod rb-node-class ((tree memory-red-black-tree))
   'memory-red-black-node)
-

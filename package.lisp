@@ -27,7 +27,7 @@
   (:use :cl)
   (:export
 
-   #:make-red-black-tree   
+   #:make-red-black-tree
    #:make-memory-persistent-red-black-tree
    #:make-text-file-red-black-tree
 
@@ -39,7 +39,8 @@
    #:with-rb-keys-and-data
    #:with-rb-transaction
 
-   #:rb-key-compare
+   #:rb<
+   #:rb=
 
    #:requires-red-black-transaction
 

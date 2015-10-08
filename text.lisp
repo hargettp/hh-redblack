@@ -23,15 +23,15 @@
 ;; ---------------------------------------------------------------------------------------------------------------------
 ;; file-based storage
 ;;
-;; We're using a text-based file format.  Each file is structured as a sequence of forms, where each form is a single object 
+;; We're using a text-based file format.  Each file is structured as a sequence of forms, where each form is a single object
 ;; (node or data), and the references between objects are in the form (form# offset) and the representation of such references
-;; is always a fixed-size.  Accessing storage depends on all objects involved (both nodes and data) to have representations 
+;; is always a fixed-size.  Accessing storage depends on all objects involved (both nodes and data) to have representations
 ;; created by cl:print-object and readable by cl:read.
 ;;
 ;; The first form of the file is the header, which contains a version number intended to describe the version number
 ;; of the file format.  The last two forms of the file are the footer and it's backup (that is, a copy of the footer
-;; used for consistency checks). The 2nd form in the file should contain the "leaf node" representation, which in an 
-;; empty tree would also be the root.  All forms are terminated by #\Newline, although that also is a convenience, 
+;; used for consistency checks). The 2nd form in the file should contain the "leaf node" representation, which in an
+;; empty tree would also be the root.  All forms are terminated by #\Newline, although that also is a convenience,
 ;; and not a required delimiter between forms (because the Lisp reader does not
 ;; require that)
 
@@ -96,7 +96,7 @@
 (defmethod print-object ((object storage-footer) stream)
   (format stream "(FOOTER ~s ~s ~20<~s~>)" (leaf object) (root object) (next-form-number object)))
 
-(defgeneric equality (left right) 
+(defgeneric equality (left right)
   (:documentation "The equality test is important for detecting consistency of the footer and its backup")
   (:method ((left t) (right t))
     (equalp left right))
@@ -116,8 +116,8 @@
   (format stream "(FORM ~20<~s~> ~s)" (form-number object) (contents object)))
 
 (defmacro form (number contents)
-  `(make-instance 'storage-form 
-		   :number ,number 
+  `(make-instance 'storage-form
+		   :number ,number
 		   :contents ,contents))
 
 (defclass text-file-red-black-object (persistent-red-black-object)
@@ -168,7 +168,7 @@
   ;; note we're counting on storage-forms to always have the same
   ;; base allocation size, independent of the value of :number
   (let ((form (make-instance 'storage-form :number 1 :contents object)))
-    (file-string-length (storage-stream tree) 
+    (file-string-length (storage-stream tree)
 			(with-output-to-string (os)
 			  (write-stored-object os form)))))
 
@@ -180,9 +180,9 @@
   (length (with-output-to-string (os)
 	    (write-stored-object os footer))))
 
-(defun make-text-file-red-black-tree (file-name) ;; TODO consider having an argument for the tree class
+(defun make-text-file-red-black-tree (file-name &optional (deduplicate t)) ;; TODO consider having an argument for the tree class
   (let ((tree nil))
-    (with-rb-transaction ((setf tree  (make-instance 'text-file-red-black-tree :file-name file-name)))
+    (with-rb-transaction ((setf tree  (make-instance 'text-file-red-black-tree :file-name file-name :deduplicate deduplicate)))
       tree)))
 
 (defun open-storage-stream (tree)
@@ -238,7 +238,7 @@
 	     ;; TODO a bit of a hack, but ensures there are no side effects
 	     ;; from creating the tree object itself
 	     (clear-changes)
-	     ;; TODO consider an abort if hit an exception in here	     
+	     ;; TODO consider an abort if hit an exception in here
 	     (let* ((stream (open-storage-stream tree)))
 	       (file-position stream (footer-location tree)) ;; set to expected location to read footer
 	       (let ((footer (read-stored-object stream))
@@ -257,12 +257,12 @@
 	(initialize-storage tree))))
 
 (defmethod prb-stash-node ((tree text-file-red-black-tree) left-location right-location color-value key-value data-location)
-  (write-stored-object (storage-stream tree) 
-		       (form (next-form-number tree) 
-			     (node :left left-location 
-				   :right right-location 
-				   :color color-value 
-				   :key key-value 
+  (write-stored-object (storage-stream tree)
+		       (form (next-form-number tree)
+			     (node :left left-location
+				   :right right-location
+				   :color color-value
+				   :key key-value
 				   :data data-location)))
   (incf (next-form-number tree)))
 
@@ -290,12 +290,12 @@
   (close-storage-stream tree))
 
 (defmethod prb-location ((tree text-file-red-black-tree))
-  (make-instance 'storage-location 
-		 :form (next-form-number tree) 
+  (make-instance 'storage-location
+		 :form (next-form-number tree)
 		 :offset (file-position (storage-stream tree))))
 
 (defmethod prb-leaf-location-p ((tree text-file-red-black-tree) location)
-  (equality location 
+  (equality location
 	    (location (leaf tree))))
 
 (defmethod prb-save-root ((tree text-file-red-black-tree) root)
@@ -309,4 +309,3 @@
     (finish-output stream)
     (setf (state root) :unloaded
 	  (slot-value tree 'root) root)))
-
